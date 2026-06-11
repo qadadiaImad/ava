@@ -33,18 +33,49 @@ from .optimizer import (
     robust_netting,
     stress_bundle,
 )
-from .passage import PassageResult, passage_matrix, project, project_bundle
+from .passage import (
+    PassageResult,
+    offgrid_residual,
+    passage_matrix,
+    project,
+    project_bundle,
+    restrict_shocks,
+    restriction_matrix,
+)
+from .clustering import (
+    DecoupledResult,
+    Dendrogram,
+    base_risk_distance,
+    build_dendrogram,
+    cut_pivots,
+    decoupled_netting,
+    evaluate_cut,
+    stability_report,
+    stable_cut,
+)
 from .reporting import audit_json, build_audit_pack
 from .scenario import ScenarioReport, preset_labels, score_scenario, smile_decomposition
 from .spectral import SpectralDiagnostic, spectral_diagnostic
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 __all__ = [
     "PassageResult",
     "passage_matrix",
     "project",
     "project_bundle",
+    "restriction_matrix",
+    "restrict_shocks",
+    "offgrid_residual",
+    "DecoupledResult",
+    "Dendrogram",
+    "base_risk_distance",
+    "build_dendrogram",
+    "cut_pivots",
+    "decoupled_netting",
+    "evaluate_cut",
+    "stability_report",
+    "stable_cut",
     "DataSource",
     "JSONBundleSource",
     "JSONScenarioSource",

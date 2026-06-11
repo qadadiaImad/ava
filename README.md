@@ -5,8 +5,10 @@ technical note *"Netting des sensibilités vega sous le test de variance — cad
 Valorisation Prudente"* (Delegated Regulation (EU) 2016/101, art. 9(5) & art. 89).
 
 A production-grade IPV framework + a colorful Streamlit studio: passage of the granular
-vega onto the consensus test nodes, optimal netting under the tracking-error variance
-test, scenario scoring of any custom netting scheme, spectral diagnostics, adverse
+vega onto the consensus test nodes (with restriction matrices when the shocks live on a
+finer grid), optimal netting under the tracking-error variance test, the decoupled
+two-run architecture (portfolio-free dendrogram + per-book AVA), stability across shock
+families, scenario scoring of any custom netting scheme, spectral diagnostics, adverse
 correlation stress, and the full art. 9(5) audit trail.
 
 > **No tensor products.** Everything is computed with ordinary matrix products and sum
@@ -34,6 +36,11 @@ correlation stress, and the full art. 9(5) audit trail.
 | Greedy agglomerative algorithm under budget (§6.3) | `ebanetting/optimizer.py` — `greedy_netting()` |
 | Rectangular contiguous pavings of the node grid (§6.3) | rectangle-union merge candidates |
 | Adverse correlation stress ρ → max(ρ−δ,−1) (step 4, §6.3) | `stress_bundle()`, `robust_netting()` |
+| Restriction without loss R_T Δσ_fin R_Kᵀ, off-grid residual (§3.5, Prop. 5, Rem. 4) | `restriction_matrix()`, `offgrid_residual()` |
+| Shock families & stability test — same partition, other Σ (§6.4) | `stability_report()`, `stable_cut()` |
+| Base-risk distance d_ij and portfolio-free dendrogram (§6.5, Run 1) | `ebanetting/clustering.py` — `build_dendrogram()` |
+| Portfolio-free TE bound, TE ≤ ε·AVA_brut/κ (§6.5, Prop. 6) | `DecoupledResult.te_bound` |
+| Run 2: AVA on the cut + per-book TE²/Var check (§6.5) | `decoupled_netting()`, `evaluate_cut()` |
 | Decoupling hypothesis ρ2D = ρ_mat·ρ_strike, entrywise (annex) | per-axis `corr_mat` / `corr_strike` inputs |
 | Art. 9(5) evidence pack (§8) | `ebanetting/reporting.py` |
 | Spectral lower bound K*(α) (complementary diagnostic) | `ebanetting/spectral.py` — per-axis eigh |
@@ -63,9 +70,15 @@ python -m pytest tests/ -q
 - **🔁 Passage** — step 1 of the note: project the granular vega onto the consensus
   pillars (sandwich Ñ = AᵀT·N·AK), check vega conservation (Prop. 3), and compare the
   tracking error of the quadrant / equal / interp conventions (Théorème 1).
-- **🧠 Optimal Netting** — the greedy optimiser: retained rectangular partition on the
-  grid, AVA waterfall (add-up → netted vs the diversification floor), budget-consumption
-  path, Lagrangian efficient frontier, robust mode with correlation-stress regimes.
+- **🧠 Optimal Netting** — the joint greedy optimiser: retained rectangular partition on
+  the grid, AVA waterfall (add-up → netted vs the diversification floor),
+  budget-consumption path, Lagrangian efficient frontier, robust mode with
+  correlation-stress regimes.
+- **🌳 Structure & Stability** — the decoupled architecture of §6.5: the portfolio-free
+  dendrogram on the base risk d_ij (Run 1), the ε cut slider with the Prop. 6 bound and
+  the per-book TE²/Var check (Run 2), and the §6.4 stability protocol replaying the
+  variance test of the same partition under alternative covariances (stress regimes or
+  an uploaded Σ_daily / Σ_bidask bundle) — unstable fusions are undone.
 - **🎯 Scenario Lab** — score **any** netting scheme: edit the (M × K) label matrix in
   place, upload one, or start from presets / the optimal solution. Returns the
   **variance score R²** (gauge vs α), the EBA verdict (test 6 + floor 7), the AVA
@@ -151,7 +164,8 @@ eba-vega-netting/
 ├── ebanetting/             # quant library (UI-independent, fully tested)
 │   ├── datasource.py       #   data contract + matrix-form quadratic engine (no kron)
 │   ├── model.py            #   ΔΠ, Var, AVA extremes
-│   ├── passage.py          #   step 1: passage to the test nodes (sandwich, Th. 1)
+│   ├── passage.py          #   step 1: passage (sandwich, Th. 1) + restriction (Prop. 5)
+│   ├── clustering.py       #   sec. 6.5 dendrogram / Prop. 6 / Run 2 + sec. 6.4 stability
 │   ├── netting.py          #   partition operator, variance test, floor, two-node
 │   ├── optimizer.py        #   greedy under budget, frontier, correlation stress
 │   ├── spectral.py         #   per-axis spectral bound, K*(α)

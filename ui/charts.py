@@ -396,3 +396,38 @@ def two_bucket_figure(s_i: float, s_j: float, nu_i: float, var_total: float,
         **_layout(110),
     )
     return fig
+
+
+def dendrogram_figure(merges: list, epsilon: float, n_applied: int, height: int = 430) -> go.Figure:
+    """Run-1 dendrogram profile: merge heights (base-risk epsilon of the
+    merged set) by step, with the retained cut."""
+    steps = [m.step for m in merges]
+    heights = [m.height for m in merges]
+    colors = ["#3DDC97" if m.step <= n_applied else "rgba(160,170,210,0.45)" for m in merges]
+    fig = go.Figure(
+        go.Bar(
+            x=steps, y=heights, name="merge height ε_r",
+            marker=dict(color=colors),
+            hovertemplate="step %{x}<br>ε = %{y:.3f}<extra></extra>",
+        )
+    )
+    fig.add_hline(
+        y=epsilon, line=dict(color="#FFC857", dash="dash", width=2),
+        annotation_text=f"cut height ε = {epsilon:.2f}", annotation_font_color="#FFC857",
+    )
+    if 0 < n_applied < len(merges):
+        fig.add_vline(
+            x=n_applied + 0.5, line=dict(color="#FF5C8A", dash="dot", width=2),
+            annotation_text="retained cut", annotation_font_color="#FF5C8A",
+        )
+    fig.update_layout(
+        title=dict(y=0.98, yanchor="top",
+                   text="Dendrogram of the test nodes — base risk d_ij, portfolio-free (sec. 6.5)",
+                   font=dict(size=16)),
+        xaxis_title="merge step (increasing base risk)",
+        yaxis_title="set ε = max d(j, pivot)/s_j",
+        showlegend=False,
+        height=height,
+        **_layout(110),
+    )
+    return fig

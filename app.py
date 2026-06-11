@@ -25,6 +25,8 @@ from ebanetting import (
     UncertaintyModel,
     audit_json,
     build_audit_pack,
+    build_dendrogram,
+    decoupled_netting,
     greedy_netting,
     lagrangian_frontier,
     preset_labels,
@@ -33,6 +35,8 @@ from ebanetting import (
     score_scenario,
     smile_decomposition,
     spectral_diagnostic,
+    stable_cut,
+    stress_bundle,
     two_bucket,
 )
 from ui import charts
@@ -109,6 +113,12 @@ def cached_frontier(bundle_json: str, alpha: float, kappa: float, weighting: str
 def cached_robust(bundle_json: str, alpha: float, kappa: float, weighting: str, deltas: tuple):
     bundle = MarketDataBundle.from_json(bundle_json)
     return robust_netting(bundle, alpha=alpha, kappa=kappa, deltas=list(deltas), weighting=weighting)
+
+
+@st.cache_resource(show_spinner=False)
+def cached_dendrogram(bundle_json: str):
+    """Run 1 (sec. 6.5) — depends only on s and rho, never on the book."""
+    return build_dendrogram(MarketDataBundle.from_json(bundle_json))
 
 
 def eur(v: float) -> str:
@@ -231,9 +241,11 @@ bundle_json = bundle.to_json(sort_keys=True)
 # --------------------------------------------------------------------------- #
 # Tabs
 # --------------------------------------------------------------------------- #
-tab_theory, tab_data, tab_passage, tab_optimal, tab_scenario, tab_spectral, tab_audit = st.tabs(
-    ["🏛️ Theory", "📊 Market Data", "🔁 Passage", "🧠 Optimal Netting", "🎯 Scenario Lab",
-     "🔬 Spectral & Smile", "📋 Audit & Export"]
+(tab_theory, tab_data, tab_passage, tab_optimal, tab_structure, tab_scenario,
+ tab_spectral, tab_audit) = st.tabs(
+    ["🏛️ Theory", "📊 Market Data", "🔁 Passage", "🧠 Optimal Netting",
+     "🌳 Structure & Stability", "🎯 Scenario Lab", "🔬 Spectral & Smile",
+     "📋 Audit & Export"]
 )
 
 # =========================================================================== #
@@ -288,6 +300,18 @@ convention (quadrant, equal-weighted) creates a quantifiable error (eq. 5) that
 consumes the variance-test budget before any netting. Consequence (Remarque 3): the
 passage matrices are **not an optimisation variable** — they are pinned by the surface
 construction; only the downstream partition is optimised.
+
+**Sec. 3.5 — when the shock grid differs from the sensi grid.** Three regimes, one
+recipe: shocks *coarser* than the sensitivities (Totem pillars) → contract the vega
+(sandwich, Théorème 1); shocks *finer* (daily variations of the full system surface,
+e.g. 350×100 vs 10×10 parametrisation pillars) → **restriction without loss**
+(Propriété 5): 0/1 selection matrices read the fine surface at the pillars,
+$\\Delta\\sigma^{\\text{pil}} = R_T\\,\\Delta\\sigma^{\\text{fin}}\\,R_K^{\\top}$, exact because
+the interpolation reproduces its nodes ($R\\,B = I$); identical grids → identity. The
+out-of-grid component $\\Delta\\sigma^{\\text{fin}} - B_T(R_T\\Delta\\sigma^{\\text{fin}}R_K^\\top)B_K^\\top$
+(Remarque 4) is measurable daily: its size gauges the adequacy of the pillar set.
+Everything downstream operates on the **pivot grid**, indifferent to the shock family
+that fed it.
 
 ### 3b · 2-D uncertainty: the decoupling hypothesis (annex)
 With per-axis correlations, the 2-D correlation decouples **entrywise**,
@@ -410,13 +434,37 @@ $\\mu\\ge0$ is the **marginal price of destroyed variance**. Sweeping $\\mu$ tra
 AVA/fidelity efficient frontier; the retained point is the intersection with
 $\\mathrm{TE}^2=B$ — evidence that the scheme is not an arbitrary point.
 
+### 6.4 · Shock families and stability
+One formalism, several covariances: $\\Sigma^{\\text{totem}}$ (AVA level + official
+test), $\\Sigma^{\\text{bid-ask}}$ (unwind-cost level), $\\Sigma^{\\text{daily}}$ (daily
+surface moves restricted to the pillars, Prop. 5 — **not** a prudential level, but the
+densest $\\rho$ estimator and the **stability test**: replay the variance test of the
+*same* partition under $\\Sigma^{\\text{daily}}$ windows and stresses; any fusion that
+fails a regime is unstable and undone). Regulatory asymmetry: refusing a valid fusion
+is allowed, keeping an invalidated one is not.
+
+### 6.5 · Decoupled architecture — structure ⟂ level
+**Run 1 (structure, portfolio-free)**: hierarchical clustering of the nodes on the
+**base risk** $d_{ij}=\\sqrt{s_i^2+s_j^2-2\\rho_{ij}s_is_j}$ (the cost of Th. 2 (i) is
+$\\nu_j^2 d_{ij}^2$) → a **dendrogram**; a scheme is a cut at height $\\varepsilon$.
+**Propriété 6**: $d_{j,\\text{pivot}}\\le\\varepsilon s_j$ per node implies, for *any*
+book, $\\mathrm{TE}\\le\\varepsilon\\sum_j|\\nu_j|s_j=\\varepsilon\\,\\mathrm{AVA}_{\\text{brut}}/\\kappa$.
+**Run 2 (level)**: evaluate $\\mathrm{AVA}=\\kappa\\sum_r|m_r|\\tilde s_r$ on the cut with
+the day's Totem $s$ — the only remaining freedom is the scalar cut height. The
+mandatory per-book check is the single closed-form ratio $\\mathrm{TE}^2/\\mathrm{Var}(\\Delta\\Pi)$
+(lower the cut if it fails). A partition that moves with the book is a validation red
+flag; here the structure is slow and justified, the level is fast and per-book.
+
 ### 8 · IPV implementation points
 - **$s_i$**: Totem inter-contributor dispersion (sd or interquantile ranges rescaled to
   90%), else broker ranges / liquidity proxies. Few contributors ⇒ **inflate** $s_i$,
   don't smooth it.
 - **$\\rho$**: estimate on **variations** of consensus marks, never levels
-  (cointegration inflates level correlations and over-justifies netting).
-  **Ledoit–Wolf shrinkage** recommended.
+  (cointegration inflates level correlations and over-justifies netting). When the
+  Totem history is short, the **daily variations of the system surface restricted to
+  the pillars (Prop. 5)** give a denser estimator — retain the **less netting-favourable**
+  of the two, and cross with the stability test (sec. 6.4). Shrinkage recommended in
+  all cases.
 - **Regulatory asymmetry**: the test protects against *under*-estimation — in doubt,
   the correlation stress must be **adverse to netting**.
 - **Documentation**: keep {retained partition, realised R², frontier, stress results}
@@ -770,6 +818,132 @@ with tab_optimal:
         )
 
 # =========================================================================== #
+# STRUCTURE & STABILITY (sec. 6.4 / 6.5)
+# =========================================================================== #
+with tab_structure:
+    st.markdown(
+        "### Decoupled architecture — the structure by the variance, the level by the AVA (sec. 6.5)\n"
+        "**Run 1** clusters the test nodes hierarchically on the **base risk** "
+        "d_ij = √(s_i² + s_j² − 2ρ_ij s_i s_j) — Théorème 2 (i): fusing j onto pivot i "
+        "costs TE² = ν_j²·d_ij². The dendrogram depends only on Σ, **never on the book**: "
+        "the structure is stable from portfolio to portfolio. A netting scheme is a "
+        "**cut** of the tree at height ε; Propriété 6 guarantees, for *any* book, "
+        "TE ≤ ε·Σ|ν_j|s_j = ε·AVA_brut/κ. **Run 2** evaluates the AVA on the cut with "
+        "the day's Totem s — no re-optimisation, plus the mandatory per-book check "
+        "TE²/Var(ΔΠ) (the cut is lowered if it fails)."
+    )
+    with st.spinner("Run 1 — building the portfolio-free dendrogram…"):
+        dendro = cached_dendrogram(bundle_json)
+    if dendro.merges:
+        heights = [m.height for m in dendro.merges]
+        h_max = max(heights)
+        h_default = float(np.median(heights))
+    else:
+        h_max, h_default = 1.0, 0.5
+    eps_cut = st.slider(
+        "ε — cut height (Prop. 6: per-node base risk ≤ ε · own uncertainty)",
+        0.0, float(np.ceil(h_max * 1.05 * 100) / 100), h_default, 0.01,
+    )
+    with st.spinner("Run 2 — evaluating the day's book on the cut…"):
+        dres = decoupled_netting(bundle, alpha=float(alpha), kappa=float(kappa),
+                                 epsilon=float(eps_cut), dendrogram=dendro)
+    ev_d = dres.evaluation
+
+    d1, d2, d3, d4, d5 = st.columns(5)
+    d1.metric("Netting sets", f"{ev_d.scheme.n_sets}",
+              delta=f"{dres.n_merges} merges (of {len(dendro.merges)})")
+    d2.metric("ε realised", f"{dres.epsilon_realised:.3f}",
+              delta=f"{dres.lowered} merge(s) undone by the book check" if dres.lowered else "cut as requested",
+              delta_color="off")
+    d3.metric("Prop. 6 bound on TE", f"{dres.te_bound:,.0f}",
+              delta=f"actual TE = {np.sqrt(max(ev_d.te2, 0)):,.0f}", delta_color="off")
+    d4.metric("Variance score R²", f"{ev_d.r2:.2%}",
+              delta=f"{(ev_d.r2 - alpha) * 100:+.2f} pts vs α")
+    d5.metric("AVA (Run 2) — Def. 4", eur(ev_d.ava), delta=f"-{ev_d.ava_saving_pct:.0%} vs add-up")
+
+    cd1, cd2 = st.columns([1.1, 1])
+    with cd1:
+        st.plotly_chart(
+            charts.dendrogram_figure(dendro.merges, float(eps_cut), dres.n_merges),
+            width="stretch",
+        )
+    with cd2:
+        st.plotly_chart(
+            charts.partition_figure(
+                dres.labels, bundle.vega, bundle.tenors, bundle.strikes,
+                title="Cut of the dendrogram — structure sets (Run 1)",
+                set_stats=ev_d.set_stats,
+            ),
+            width="stretch",
+        )
+    st.caption(
+        "Compare with the joint greedy (Optimal Netting tab): the decoupled scheme may "
+        "leave some AVA on the table, but it does not move with the book — re-optimising "
+        "the partition every date with the day's vegas is itself a red flag in validation "
+        "(sec. 6.5)."
+    )
+
+    st.divider()
+    st.markdown(
+        "#### Stability across shock families (sec. 6.4)\n"
+        "Same partition, same transport, same formulas — only Σ changes. The variance "
+        "test of the retained cut is replayed under alternative covariances; any fusion "
+        "failing a regime is unstable and undone (one may refuse a valid fusion, never "
+        "keep an invalidated one)."
+    )
+    stab_deltas = st.multiselect(
+        "Adverse-correlation regimes standing in for Σ_daily windows (ρ → max(ρ−δ, −1))",
+        [0.05, 0.10, 0.15, 0.20, 0.30], default=[0.10, 0.20],
+    )
+    alt_upload = st.file_uploader(
+        "…and/or upload an alternative-covariance bundle (e.g. Σ_daily restricted to "
+        "the pillars via Prop. 5, or Σ_bidask) — same grid and vega, different s/ρ",
+        type=["json"], key="alt_cov",
+    )
+    alternatives = {f"ρ − {d:.2f}": stress_bundle(bundle, d) for d in stab_deltas}
+    if alt_upload is not None:
+        alt_b = MarketDataBundle.from_json(alt_upload.read().decode("utf-8"))
+        if (alt_b.M, alt_b.K) == (bundle.M, bundle.K):
+            alternatives["uploaded Σ"] = alt_b
+        else:
+            st.error("Alternative bundle grid does not match — ignored.")
+    if alternatives:
+        with st.spinner("Replaying the variance test in every regime…"):
+            stab = stable_cut(bundle, alternatives, alpha=float(alpha),
+                              kappa=float(kappa), epsilon=float(eps_cut),
+                              dendrogram=dendro)
+        if stab["undone"]:
+            st.warning(
+                f"{stab['undone']} fusion(s) unstable under at least one alternative "
+                f"covariance — undone. Retained: {stab['n_merges']} merges, "
+                f"{stab['evaluation'].scheme.n_sets} sets."
+            )
+        else:
+            st.success("Every fusion of the cut survives all regimes — the structure is stable.")
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "regime": r["regime"],
+                        "R²": round(r["r2"], 4),
+                        "TE²/B": round(r["te2"] / r["budget"], 3) if r["budget"] > 0 else None,
+                        "variance test": "PASS" if r["passes_variance"] else "FAIL",
+                    }
+                    for r in stab["report"]
+                ]
+            ),
+            width="stretch",
+            hide_index=True,
+        )
+        st.session_state["stability_pack"] = {
+            "epsilon": float(eps_cut),
+            "undone": stab["undone"],
+            "n_merges": stab["n_merges"],
+            "regimes": stab["report"],
+            "labels": stab["labels"].tolist(),
+        }
+
+# =========================================================================== #
 # SCENARIO LAB
 # =========================================================================== #
 with tab_scenario:
@@ -965,6 +1139,8 @@ with tab_audit:
             stress_results=stress_results,
             history=history_a,
         )
+        if st.session_state.get("stability_pack") is not None:
+            pack["stability_6_4"] = st.session_state["stability_pack"]
         text = audit_json(pack)
         a1, a2 = st.columns([1, 1])
         with a1:

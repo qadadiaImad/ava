@@ -335,3 +335,119 @@ def test_nearest_correlation():
     fixed = nearest_correlation(rho)
     assert np.allclose(np.diag(fixed), 1.0)
     assert np.linalg.eigvalsh(fixed).min() >= -1e-10
+
+
+# --------------------------------------------------------------------------- #
+# Sec. 3.5 — restriction without loss (Propriete 5)
+# --------------------------------------------------------------------------- #
+def test_restriction_reads_pillars_exactly():
+    """R_T dsigma_fin R_K' = dsigma_pil when the fine surface is generated
+    by the pillars (Propriete 5), and R B = I."""
+    from ebanetting import offgrid_residual, restrict_shocks, restriction_matrix
+
+    pil_t, pil_k = [1.0, 3.0], [100.0, 120.0]
+    fine_t, fine_k = [1.0, 1.5, 2.0, 2.5, 3.0], [100.0, 105.0, 110.0, 115.0, 120.0]
+    b_t = passage_matrix(fine_t, pil_t, "interp")
+    b_k = passage_matrix(fine_k, pil_k, "interp")
+    r_t = restriction_matrix(fine_t, pil_t)
+    r_k = restriction_matrix(fine_k, pil_k)
+    # the interpolation reproduces its nodes: R B = I
+    np.testing.assert_allclose(r_t @ b_t, np.eye(2), atol=1e-12)
+    np.testing.assert_allclose(r_k @ b_k, np.eye(2), atol=1e-12)
+    # pillar-generated fine shocks restrict back exactly, no residual
+    rng = np.random.default_rng(5)
+    shocks_pil = rng.normal(size=(2, 2))
+    shocks_fine = b_t @ shocks_pil @ b_k.T
+    np.testing.assert_allclose(restrict_shocks(shocks_fine, r_t, r_k), shocks_pil, atol=1e-12)
+    np.testing.assert_allclose(
+        offgrid_residual(shocks_fine, b_t, b_k, r_t, r_k), 0.0, atol=1e-12
+    )
+    # a re-fitted move beyond the pillars leaves a measurable off-grid part
+    shocks_fine[2, 2] += 1.0
+    assert np.abs(offgrid_residual(shocks_fine, b_t, b_k, r_t, r_k)).max() > 0.1
+
+
+# --------------------------------------------------------------------------- #
+# Sec. 6.5 — decoupled architecture
+# --------------------------------------------------------------------------- #
+def test_base_risk_distance_matches_theorem2(bundle):
+    """Fusing j onto pivot i costs TE^2 = nu_j^2 d_ij^2 (Th. 2 (i))."""
+    from ebanetting import base_risk_distance
+
+    d = base_risk_distance(bundle)
+    K = bundle.K
+    assert np.allclose(d, d.T) and np.allclose(np.diag(d), 0.0)
+    (m, k), (mp, kp) = (1, 2), (4, 5)
+    rho = bundle.corr_mat[m, mp] * bundle.corr_strike[k, kp]
+    expected = np.sqrt(
+        bundle.s[m, k] ** 2 + bundle.s[mp, kp] ** 2
+        - 2 * rho * bundle.s[m, k] * bundle.s[mp, kp]
+    )
+    assert d[m * K + k, mp * K + kp] == pytest.approx(expected)
+
+
+def test_dendrogram_is_portfolio_free_and_nested(bundle):
+    """Run 1 must not depend on the book; cuts are nested in epsilon."""
+    from ebanetting import build_dendrogram
+
+    other_book = MarketDataBundle(
+        tenors=bundle.tenors,
+        tenor_years=bundle.tenor_years,
+        strikes=bundle.strikes,
+        vega=-3.0 * bundle.vega + 11.0,
+        s=bundle.s,
+        corr_mat=bundle.corr_mat,
+        corr_strike=bundle.corr_strike,
+    )
+    d1, d2 = build_dendrogram(bundle), build_dendrogram(other_book)
+    assert [(m.rect_a, m.rect_b, m.height) for m in d1.merges] == [
+        (m.rect_a, m.rect_b, m.height) for m in d2.merges
+    ]
+    # nested cuts: each merge prefix refines the next
+    la, lb = d1.labels_after(5), d1.labels_after(12)
+    for sid in np.unique(la):
+        assert len(np.unique(lb[la == sid])) == 1
+
+
+def test_portfolio_free_bound(bundle):
+    """Propriete 6: TE <= eps_realised * sum |nu_j| s_j for any book."""
+    from ebanetting import decoupled_netting
+
+    res = decoupled_netting(bundle, alpha=0.9, kappa=KAPPA_90, epsilon=0.6)
+    assert np.sqrt(res.evaluation.te2) <= res.te_bound + 1e-9
+    assert res.evaluation.passes_variance and res.evaluation.passes_floor
+    # the realised epsilon honours the requested cut height
+    assert all(p["epsilon"] <= res.epsilon + 1e-12 for p in res.pivots.values()) or res.lowered > 0
+
+
+def test_decoupled_lowers_cut_for_hedged_book(bundle):
+    """The per-book check: a very hedged book (small Var vs add-up scale)
+    forces a finer cut — never a failed scheme."""
+    from ebanetting import decoupled_netting
+
+    res = decoupled_netting(bundle, alpha=0.99, kappa=KAPPA_90, epsilon=2.0)
+    assert res.evaluation.passes_variance
+    assert res.n_merges <= res.dendrogram.n_merges_at(2.0)
+
+
+# --------------------------------------------------------------------------- #
+# Sec. 6.4 — stability across shock families
+# --------------------------------------------------------------------------- #
+def test_stability_undoes_fragile_fusions(bundle):
+    """Fusions failing under an adverse alternative covariance are undone;
+    the retained cut passes the variance test in every regime."""
+    from ebanetting import build_dendrogram, stable_cut
+
+    alternatives = {
+        "stress_0.2": stress_bundle(bundle, 0.2),
+        "stress_0.4": stress_bundle(bundle, 0.4),
+    }
+    dendro = build_dendrogram(bundle)
+    out = stable_cut(bundle, alternatives, alpha=0.9, kappa=KAPPA_90,
+                     epsilon=0.8, dendrogram=dendro)
+    assert all(r["passes_variance"] for r in out["report"])
+    assert out["n_merges"] <= dendro.n_merges_at(0.8)
+    # undone merges imply the unstable regime was binding
+    base_only = stable_cut(bundle, {}, alpha=0.9, kappa=KAPPA_90,
+                           epsilon=0.8, dendrogram=dendro)
+    assert out["n_merges"] <= base_only["n_merges"]
