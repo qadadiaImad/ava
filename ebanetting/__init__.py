@@ -1,0 +1,66 @@
+"""ebanetting — vega netting under the EBA Prudent Valuation variance test.
+
+Implements the technical note "Netting des sensibilités de volatilité sous
+contrainte de test de variance" (AVA MPU, Delegated Regulation (EU)
+2016/101): netting as an aggregation operator, the tracking-error variance
+test, the conservatism floor, the two-bucket closed form, the spectral
+(PCA) lower bound and the greedy agglomerative optimiser with adverse
+correlation stress.
+"""
+
+from .datasource import (
+    DataSource,
+    JSONBundleSource,
+    JSONScenarioSource,
+    MarketDataBundle,
+    MatrixScenarioSource,
+    ScenarioSource,
+    SyntheticDataSource,
+    nearest_correlation,
+)
+from .model import KAPPA_90, UncertaintyModel
+from .netting import NettingScheme, SchemeEvaluation, SetStat, two_bucket
+from .optimizer import (
+    GreedyResult,
+    MergeStep,
+    greedy_netting,
+    lagrangian_frontier,
+    robust_netting,
+    stress_bundle,
+)
+from .reporting import audit_json, build_audit_pack
+from .scenario import ScenarioReport, preset_labels, score_scenario, smile_decomposition
+from .spectral import SpectralDiagnostic, spectral_diagnostic
+
+__version__ = "1.0.0"
+
+__all__ = [
+    "DataSource",
+    "JSONBundleSource",
+    "JSONScenarioSource",
+    "MarketDataBundle",
+    "MatrixScenarioSource",
+    "ScenarioSource",
+    "SyntheticDataSource",
+    "nearest_correlation",
+    "KAPPA_90",
+    "UncertaintyModel",
+    "NettingScheme",
+    "SchemeEvaluation",
+    "SetStat",
+    "two_bucket",
+    "GreedyResult",
+    "MergeStep",
+    "greedy_netting",
+    "lagrangian_frontier",
+    "robust_netting",
+    "stress_bundle",
+    "audit_json",
+    "build_audit_pack",
+    "ScenarioReport",
+    "preset_labels",
+    "score_scenario",
+    "smile_decomposition",
+    "SpectralDiagnostic",
+    "spectral_diagnostic",
+]
