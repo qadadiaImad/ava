@@ -15,7 +15,10 @@ from ebanetting import (
     UncertaintyModel,
     greedy_netting,
     nearest_correlation,
+    passage_matrix,
     preset_labels,
+    project,
+    project_bundle,
     robust_netting,
     score_scenario,
     spectral_diagnostic,
@@ -38,18 +41,65 @@ def test_bundle_valid(bundle):
     assert bundle.validate() == []
 
 
-def test_kronecker_covariance_entries(bundle):
-    """Sigma[(m,k),(m',k')] = s_mk s_m'k' rho_mat[m,m'] rho_strike[k,k']."""
-    sigma = bundle.covariance()
-    K = bundle.K
+def test_decoupled_covariance_entries(bundle):
+    """Cov(dsigma_mk, dsigma_m'k') = s_mk s_m'k' rho_mat[m,m'] rho_strike[k,k']
+    recovered through the matrix-form bilinear form on unit-bump exposures
+    (no Kronecker matrix anywhere)."""
     for (m, k, mp, kp) in [(0, 0, 3, 5), (2, 4, 2, 4), (7, 1, 1, 7)]:
+        e_a = np.zeros((bundle.M, bundle.K))
+        e_b = np.zeros((bundle.M, bundle.K))
+        e_a[m, k] = 1.0
+        e_b[mp, kp] = 1.0
         expected = (
             bundle.s[m, k]
             * bundle.s[mp, kp]
             * bundle.corr_mat[m, mp]
             * bundle.corr_strike[k, kp]
         )
-        assert sigma[m * K + k, mp * K + kp] == pytest.approx(expected)
+        assert bundle.covariance_of(e_a, e_b) == pytest.approx(expected)
+
+
+def test_variance_matches_scalar_double_sum(bundle):
+    """Property 1 by brute force: the matrix sandwich must equal the
+    explicit double sum over all bucket pairs (scalar products only)."""
+    rng = np.random.default_rng(11)
+    expo = rng.normal(size=(bundle.M, bundle.K))
+    total = 0.0
+    for m in range(bundle.M):
+        for k in range(bundle.K):
+            for mp in range(bundle.M):
+                for kp in range(bundle.K):
+                    total += (
+                        expo[m, k] * expo[mp, kp]
+                        * bundle.s[m, k] * bundle.s[mp, kp]
+                        * bundle.corr_mat[m, mp] * bundle.corr_strike[k, kp]
+                    )
+    assert bundle.variance_of(expo) == pytest.approx(total, rel=1e-10)
+
+
+def test_corr_full_path_consistent(bundle):
+    """A corr_full assembled entrywise from the decoupled axes must give
+    the same quadratic forms as the sandwich path."""
+    n = bundle.n
+    full = np.empty((n, n))
+    for m in range(bundle.M):
+        for k in range(bundle.K):
+            for mp in range(bundle.M):
+                for kp in range(bundle.K):
+                    full[m * bundle.K + k, mp * bundle.K + kp] = (
+                        bundle.corr_mat[m, mp] * bundle.corr_strike[k, kp]
+                    )
+    clone = MarketDataBundle(
+        tenors=bundle.tenors,
+        tenor_years=bundle.tenor_years,
+        strikes=bundle.strikes,
+        vega=bundle.vega,
+        s=bundle.s,
+        corr_full=full,
+    )
+    assert clone.variance_of(bundle.vega) == pytest.approx(
+        bundle.variance_of(bundle.vega), rel=1e-10
+    )
 
 
 def test_extremes(model):
@@ -62,7 +112,7 @@ def test_extremes(model):
 
 
 def test_two_bucket_closed_form_matches_engine():
-    """Eq. (10) against the generic TE^2 engine on an isolated pair."""
+    """Th. 2 (i) closed form against the generic TE^2 engine on an isolated pair."""
     nu_i, nu_j, s_i, s_j, rho = 1200.0, -800.0, 0.5, 0.62, 0.9
     bundle = MarketDataBundle(
         tenors=["1Y"],
@@ -84,9 +134,9 @@ def test_two_bucket_closed_form_matches_engine():
 
 
 def test_two_bucket_threshold_is_sharp():
-    """rho just above rho_min passes, just below fails (eq. 11)."""
+    """rho just above rho_min passes, just below fails (eq. 8)."""
     # homogeneous uncertainties and a netted position small relative to
-    # total risk, otherwise eq. (11) has no solution below rho = 1
+    # total risk, otherwise eq. (8) has no solution below rho = 1
     nu_i, nu_j, s_i, s_j, alpha = 1000.0, -300.0, 0.5, 0.5, 0.9
 
     def make(rho):
@@ -102,7 +152,7 @@ def test_two_bucket_threshold_is_sharp():
         return UncertaintyModel(bundle=b)
 
     # locate the threshold rho* where TE^2(rho) = (1 - alpha) Var(rho) by
-    # bisection (var_total itself depends on rho, so eq. 11 is implicit)
+    # bisection (var_total itself depends on rho, so eq. 8 is implicit)
     def excess(rho):
         cf = two_bucket(nu_i, nu_j, s_i, s_j, rho, make(rho).var_total, alpha, KAPPA_90)
         return cf["te2"] - cf["budget"]
@@ -195,7 +245,7 @@ def test_scenario_scoring_roundtrip(bundle):
     assert report.verdict in {
         "ADMISSIBLE",
         "REJECTED — variance test (R² < α)",
-        "REJECTED — conservatism floor (8)",
+        "REJECTED — conservatism floor (7)",
         "REJECTED — variance test and floor",
     }
 
@@ -203,10 +253,81 @@ def test_scenario_scoring_roundtrip(bundle):
 def test_json_roundtrip(bundle):
     clone = MarketDataBundle.from_json(bundle.to_json())
     assert clone.validate() == []
-    np.testing.assert_allclose(clone.covariance(), bundle.covariance())
     m1 = UncertaintyModel(bundle=bundle)
     m2 = UncertaintyModel(bundle=clone)
+    assert m1.var_total == pytest.approx(m2.var_total)
     assert m1.ava_brut == pytest.approx(m2.ava_brut)
+
+
+# --------------------------------------------------------------------------- #
+# Passage to the test nodes (sec. 3 of the note)
+# --------------------------------------------------------------------------- #
+@pytest.fixture
+def note_bundle() -> MarketDataBundle:
+    """The worked example of the note: M=3 maturities x K=4 strikes."""
+    return MarketDataBundle(
+        tenors=["1Y", "2Y", "3Y"],
+        tenor_years=[1.0, 2.0, 3.0],
+        strikes=[90.0, 100.0, 110.0, 120.0],
+        vega=np.array(
+            [[80.0, -30.0, 10.0, 0.0],
+             [-50.0, 40.0, -20.0, 10.0],
+             [20.0, 0.0, 30.0, -40.0]]
+        ),
+        s=np.ones((3, 4)),
+        corr_mat=np.eye(3),
+        corr_strike=np.eye(4),
+    )
+
+
+def test_passage_matrices_match_note_example(note_bundle):
+    """Interp weights of sec. 3.2: pillars {1Y, 3Y} and {100, 120}."""
+    a_t = passage_matrix(note_bundle.tenor_years, [1.0, 3.0], "interp")
+    a_k = passage_matrix(note_bundle.strikes, [100.0, 120.0], "interp")
+    np.testing.assert_allclose(a_t, [[1.0, 0.0], [0.5, 0.5], [0.0, 1.0]])
+    np.testing.assert_allclose(
+        a_k, [[1.0, 0.0], [1.0, 0.0], [0.5, 0.5], [0.0, 1.0]]
+    )
+    # rows are non-negative and sum to one (Def. 1)
+    for a in (a_t, a_k):
+        assert np.all(a >= 0)
+        np.testing.assert_allclose(a.sum(axis=1), 1.0)
+
+
+def test_passage_sandwich_matches_note_example(note_bundle):
+    """Eq. (4) of the note: N_tilde = A_T' N A_K = [[45, 5], [25, -25]]."""
+    a_t = passage_matrix(note_bundle.tenor_years, [1.0, 3.0], "interp")
+    a_k = passage_matrix(note_bundle.strikes, [100.0, 120.0], "interp")
+    np.testing.assert_allclose(
+        project(note_bundle.vega, a_t, a_k), [[45.0, 5.0], [25.0, -25.0]]
+    )
+
+
+def test_passage_conserves_total_vega(note_bundle):
+    """Property 3: sum N_tilde = sum N for any passage convention."""
+    for conv in ("interp", "equal", "quadrant"):
+        res = project_bundle(note_bundle, [0, 2], [1, 3], conv)
+        assert res.conserves_vega
+        assert res.vega_total_nodes == pytest.approx(50.0)
+
+
+def test_passage_interp_has_zero_tracking_error(bundle):
+    """Theoreme 1: aligning passage weights on the interpolation weights
+    gives TE_passage = 0; other conventions consume budget."""
+    res = project_bundle(bundle, [0, 3, 5, 7], [0, 2, 4, 6], "interp")
+    assert res.te2_passage == pytest.approx(0.0, abs=1e-12)
+    assert res.te2_by_convention["equal"] >= 0.0
+    assert res.te2_by_convention["quadrant"] >= 0.0
+
+
+def test_projected_bundle_feeds_the_pipeline(bundle):
+    """The node bundle must be a valid input for the whole machinery."""
+    res = project_bundle(bundle, [0, 3, 5, 7], [0, 2, 4, 6], "interp")
+    node = res.node_bundle
+    assert node.validate() == []
+    model = UncertaintyModel(bundle=node, kappa=KAPPA_90)
+    out = greedy_netting(model, alpha=0.9)
+    assert out.evaluation.passes_variance and out.evaluation.passes_floor
 
 
 def test_nearest_correlation():

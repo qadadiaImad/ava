@@ -1,7 +1,11 @@
 """First-order valuation-uncertainty model (sec. 2 of the note).
 
-DeltaPi = nu' dsigma,  Var(DeltaPi) = nu' Sigma nu, with the two AVA
+DeltaPi = <N, dsigma>,  Var(DeltaPi) by Property 1, with the two AVA
 extremes: add-up (no netting, eq. 2) and full diversification (eq. 3).
+
+Everything is evaluated on the (M, K) grid in matrix form — ordinary
+matrix products and sum reductions only; the (MK, MK) covariance matrix
+is never assembled (see :meth:`MarketDataBundle.covariance_of`).
 """
 
 from __future__ import annotations
@@ -26,29 +30,28 @@ class UncertaintyModel:
     bundle: MarketDataBundle
     kappa: float = KAPPA_90
 
-    @cached_property
-    def nu(self) -> np.ndarray:
-        return self.bundle.nu
+    def variance_of(self, exposure: np.ndarray) -> float:
+        """Var(<exposure, dsigma>) — Property 1, matrix sandwich form."""
+        return self.bundle.variance_of(exposure)
 
-    @cached_property
-    def sigma(self) -> np.ndarray:
-        return self.bundle.covariance()
+    def covariance_of(self, expo_a: np.ndarray, expo_b: np.ndarray) -> float:
+        return self.bundle.covariance_of(expo_a, expo_b)
 
     @cached_property
     def var_total(self) -> float:
-        """Var(DeltaPi) = nu' Sigma nu, eq. (1)."""
-        return float(self.nu @ self.sigma @ self.nu)
+        """Var(DeltaPi) = Var(<N, dsigma>), Property 1."""
+        return self.variance_of(self.bundle.vega)
 
     @cached_property
     def ava_brut(self) -> float:
-        """Add-up AVA, eq. (2): kappa * sum |nu_i| s_i."""
-        return float(self.kappa * np.sum(np.abs(self.nu) * self.bundle.s_vec))
+        """Add-up AVA, eq. (2): kappa * sum |N_mk| s_mk."""
+        return float(self.kappa * np.sum(np.abs(self.bundle.vega) * self.bundle.s))
 
     @cached_property
     def ava_full(self) -> float:
-        """Fully diversified AVA, eq. (3): kappa * sqrt(nu' Sigma nu)."""
+        """Fully diversified AVA, eq. (3): kappa * sqrt(Var(DeltaPi))."""
         return float(self.kappa * np.sqrt(max(self.var_total, 0.0)))
 
     def budget(self, alpha: float) -> float:
-        """Residual-variance budget B = (1 - alpha) Var(DeltaPi), eq. (7)."""
+        """Residual-variance budget B = (1 - alpha) Var(DeltaPi), eq. (6)."""
         return (1.0 - alpha) * self.var_total

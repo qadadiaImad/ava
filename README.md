@@ -1,14 +1,19 @@
 # 🧮 Vega Netting Studio — EBA Prudent Valuation (AVA MPU)
 
 **Volatility-sensitivity netting under the EBA variance test**, as formalised in the
-technical note *"Netting des sensibilités de volatilité sous contrainte de test de
-variance — formalisation dans le cadre EBA Prudent Valuation (AVA / MPU)"*
-(Delegated Regulation (EU) 2016/101, art. 9(5) & art. 89).
+technical note *"Netting des sensibilités vega sous le test de variance — cadre EBA
+Valorisation Prudente"* (Delegated Regulation (EU) 2016/101, art. 9(5) & art. 89).
 
-A production-grade IPV framework + a colorful Streamlit studio: optimal netting of the
-vega surface under the tracking-error variance test, scenario scoring of any custom
-netting scheme, spectral diagnostics, adverse correlation stress, and the full
-art. 9(5) audit trail.
+A production-grade IPV framework + a colorful Streamlit studio: passage of the granular
+vega onto the consensus test nodes, optimal netting under the tracking-error variance
+test, scenario scoring of any custom netting scheme, spectral diagnostics, adverse
+correlation stress, and the full art. 9(5) audit trail.
+
+> **No tensor products.** Everything is computed with ordinary matrix products and sum
+> reductions on the (tenor, strike) grid: the passage is the sandwich Ñ = AᵀT·N·AK, and
+> under the decoupled-correlation hypothesis every variance is the matrix form of
+> Property 1, `Var⟨V,Δσ⟩ = Σ( (V∘s) ∘ (ρ_mat @ (V∘s) @ ρ_strike) )`. The (MK × MK)
+> Kronecker covariance is never assembled.
 
 ---
 
@@ -16,20 +21,24 @@ art. 9(5) audit trail.
 
 | Theory (note section) | Implementation |
 |---|---|
-| Uncertainty model ΔΠ = ν′Δσ, Σ = DρD (§2) | `ebanetting/model.py` — `UncertaintyModel` |
+| Uncertainty model ΔΠ = ⟨N, Δσ⟩, Property 1 (§2) | `ebanetting/model.py` — `UncertaintyModel` |
 | AVA extremes: add-up (2) / full diversification (3) | `ava_brut`, `ava_full` |
-| Kronecker separability ρ = ρ_mat ⊗ ρ_strike (§3.1, eq. 4) | `MarketDataBundle.covariance()` |
-| Netting as aggregation operator P, W, Σ̃ = WΣW′ (§4, def. 1) | `ebanetting/netting.py` — `NettingScheme` |
-| Variance test TE² ≤ (1−α)·Var(ΔΠ), R² ≥ α (§5, eq. 7) | `NettingScheme.evaluate()` |
-| Conservatism floor AVA(P) ≥ κ√(ν′Σν) (eq. 8) | `SchemeEvaluation.passes_floor` |
-| Two-bucket closed form (§6.2, eqs. 10–11) | `two_bucket()` — unit-tested against the engine |
-| Spectral (PCA) lower bound, K*(α) (§6.3, Lemma 1) | `ebanetting/spectral.py` |
-| Greedy agglomerative algorithm under budget (§6.4) | `ebanetting/optimizer.py` — `greedy_netting()` |
-| Rectangular pavings of the tenor × strike grid (§3.2) | rectangle-union merge candidates |
-| Lagrangian efficient frontier (Remark 2) | `lagrangian_frontier()` |
-| Adverse correlation stress ρ → max(ρ−δ,−1) (step 4, §7) | `stress_bundle()`, `robust_netting()` |
-| Hierarchical netting / smile decomposition level–RR–fly (§3.2) | `scenario.smile_decomposition()` |
-| Art. 9(5) evidence pack (§7) | `ebanetting/reporting.py` |
+| Quadratic forms in matrix sandwich form, no Kronecker (§2 + annex) | `MarketDataBundle.variance_of/covariance_of` |
+| Passage to the test nodes Ñ = AᵀT·N·AK, Th. 1 (§3) | `ebanetting/passage.py` — `project_bundle()` |
+| Passage conventions quadrant / equal / interp (§3.2, Def. 1) | `passage_matrix()` |
+| Passage tracking error vs surface weights (eq. 5) | `PassageResult.te2_by_convention` |
+| Netting as aggregation operator on the nodes (§5, Def. 4) | `ebanetting/netting.py` — `NettingScheme` |
+| Variance test TE² ≤ (1−α)·Var(ΔΠ), R² ≥ α (§4, eq. 6, Def. 3) | `NettingScheme.evaluate()` |
+| Conservatism floor AVA(P) ≥ κ√Var(ΔΠ) (eq. 7) | `SchemeEvaluation.passes_floor` |
+| Two-node closed form (§5.2, Théorème 2, eq. 8) | `two_bucket()` — unit-tested against the engine |
+| Greedy agglomerative algorithm under budget (§6.3) | `ebanetting/optimizer.py` — `greedy_netting()` |
+| Rectangular contiguous pavings of the node grid (§6.3) | rectangle-union merge candidates |
+| Adverse correlation stress ρ → max(ρ−δ,−1) (step 4, §6.3) | `stress_bundle()`, `robust_netting()` |
+| Decoupling hypothesis ρ2D = ρ_mat·ρ_strike, entrywise (annex) | per-axis `corr_mat` / `corr_strike` inputs |
+| Art. 9(5) evidence pack (§8) | `ebanetting/reporting.py` |
+| Spectral lower bound K*(α) (complementary diagnostic) | `ebanetting/spectral.py` — per-axis eigh |
+| Lagrangian efficient frontier (complementary) | `lagrangian_frontier()` |
+| Hierarchical netting / smile decomposition (complementary) | `scenario.smile_decomposition()` |
 
 ## Quick start
 
@@ -51,16 +60,19 @@ python -m pytest tests/ -q
   regulatory frame to the algorithm and the IPV implementation pitfalls.
 - **📊 Market Data** — vega surface, consensus-dispersion surface, tenor/strike
   correlation heatmaps, AVA envelope KPIs, and the data contract.
+- **🔁 Passage** — step 1 of the note: project the granular vega onto the consensus
+  pillars (sandwich Ñ = AᵀT·N·AK), check vega conservation (Prop. 3), and compare the
+  tracking error of the quadrant / equal / interp conventions (Théorème 1).
 - **🧠 Optimal Netting** — the greedy optimiser: retained rectangular partition on the
   grid, AVA waterfall (add-up → netted vs the diversification floor), budget-consumption
   path, Lagrangian efficient frontier, robust mode with correlation-stress regimes.
 - **🎯 Scenario Lab** — score **any** netting scheme: edit the (M × K) label matrix in
   place, upload one, or start from presets / the optimal solution. Returns the
-  **variance score R²** (gauge vs α), the EBA verdict (test 7 + floor 8), the AVA
-  impact and per-set statistics. Includes the two-bucket closed-form sandbox.
-- **🔬 Spectral & Smile** — scree/loadings of Σ weighted by the vega profile, K*(α),
-  leading eigenmodes on the grid, and the per-tenor level / risk-reversal / butterfly
-  decomposition with per-tranche tests.
+  **variance score R²** (gauge vs α), the EBA verdict (test 6 + floor 7), the AVA
+  impact and per-set statistics. Includes the two-node closed-form sandbox (Th. 2).
+- **🔬 Spectral & Smile** — per-axis spectrum weighted by the scaled vega profile,
+  K*(α), leading 2-D modes u_a·u_bᵀ on the grid, and the per-tenor level /
+  risk-reversal / butterfly decomposition with per-tranche tests.
 - **📋 Audit & Export** — the art. 9(5) evidence pack: retained partition, realised R²,
   frontier, stress table, greedy trace, SHA-256 input fingerprint — one JSON download.
 
@@ -93,14 +105,15 @@ exposure:
   "strikes":     [0.80, 0.90, ...],          // K moneyness levels K/F (recommended, §3.3)
   "vega":        [[...], ...],               // M x K signed vegas  ∂V/∂σ(T, K)
   "s":           [[...], ...],               // M x K uncertainty std-devs, > 0
-  "corr_mat":    [[...], ...],               // M x M  (Kronecker factor, eq. 4)
-  "corr_strike": [[...], ...],               // K x K  (Kronecker factor, eq. 4)
-  "corr_full":   null                        // (MK x MK) — overrides the Kronecker pair
+  "corr_mat":    [[...], ...],               // M x M  (decoupled tenor correlation, annex)
+  "corr_strike": [[...], ...],               // K x K  (decoupled strike correlation, annex)
+  "corr_full":   null                        // (MK x MK) — overrides the decoupled pair
 }
 ```
 
-Conventions: row-major vectorisation (bucket *i = m·K + k*); strikes in **moneyness
-K/F** as recommended by §3.3 (estimating Σ on an absolute-strike grid inflates
+Conventions: row-major vectorisation (bucket *i = m·K + k*, only relevant for
+`corr_full`); strikes in **moneyness K/F** as recommended by §8 (estimating the
+uncertainty model on an absolute-strike grid inflates
 strike-axis correlations and over-justifies netting — a non-conservative bias);
 correlations estimated on **variations** of consensus marks with Ledoit–Wolf shrinkage.
 A ready sample lives at [`data/sample_bundle.json`](data/sample_bundle.json).
@@ -136,11 +149,12 @@ pack = build_audit_pack(bundle, result.evaluation, kappa=KAPPA_90,
 eba-vega-netting/
 ├── app.py                  # Streamlit studio
 ├── ebanetting/             # quant library (UI-independent, fully tested)
-│   ├── datasource.py       #   data contract + abstract sources (plug your pipe here)
+│   ├── datasource.py       #   data contract + matrix-form quadratic engine (no kron)
 │   ├── model.py            #   ΔΠ, Var, AVA extremes
-│   ├── netting.py          #   partition operator, variance test, floor, two-bucket
+│   ├── passage.py          #   step 1: passage to the test nodes (sandwich, Th. 1)
+│   ├── netting.py          #   partition operator, variance test, floor, two-node
 │   ├── optimizer.py        #   greedy under budget, frontier, correlation stress
-│   ├── spectral.py         #   PCA bound, K*(α)
+│   ├── spectral.py         #   per-axis spectral bound, K*(α)
 │   ├── scenario.py         #   scenario scoring, presets, smile decomposition
 │   └── reporting.py        #   art. 9(5) audit pack
 ├── ui/charts.py            # Plotly figure builders
@@ -148,7 +162,7 @@ eba-vega-netting/
 └── tests/test_core.py      # closed-forms vs engine, budget/floor invariants
 ```
 
-## Caveats (faithful to the note, §7)
+## Caveats (faithful to the note, §8)
 
 - First-order model: for books with material volga/vanna (cliquets, barriers), validate
   that second-order terms do not reorder the sets — otherwise net on full scenarios.

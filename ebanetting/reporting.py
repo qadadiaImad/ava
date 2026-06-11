@@ -2,7 +2,7 @@
 
 The RTS requires documented evidence that netted exposures genuinely
 offset against the parameter uncertainty. This module assembles the
-audit trail recommended in sec. 7 of the note: retained partition,
+audit trail recommended in sec. 8 of the note: retained partition,
 realised R^2, efficient frontier, and stress results, per computation
 date — exportable as JSON for the model-validation archive.
 """

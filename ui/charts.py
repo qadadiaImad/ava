@@ -164,7 +164,7 @@ def ava_waterfall(ava_brut: float, ava_netted: float, ava_full: float, height: i
         go.Waterfall(
             orientation="v",
             measure=["absolute", "relative", "total"],
-            x=["AVA add-up (2)", "netting benefit", "AVA netted (6)"],
+            x=["AVA add-up (2)", "netting benefit", "AVA netted (Def. 4)"],
             y=[ava_brut, -(ava_brut - ava_netted), 0.0],
             text=[_fmt(ava_brut), f"−{_fmt(ava_brut - ava_netted)}", _fmt(ava_netted)],
             textposition="outside",
@@ -176,7 +176,7 @@ def ava_waterfall(ava_brut: float, ava_netted: float, ava_full: float, height: i
     )
     fig.add_hline(
         y=ava_full, line=dict(color="#B388EB", dash="dash", width=2),
-        annotation_text=f"floor (8): full diversification κ√(ν′Σν) = {_fmt(ava_full)}",
+        annotation_text=f"floor (7): full diversification κ√Var(ΔΠ) = {_fmt(ava_full)}",
         annotation_font_color="#B388EB",
     )
     fig.update_layout(
@@ -206,7 +206,7 @@ def r2_gauge(r2: float, alpha: float, height: int = 320) -> go.Figure:
                     line=dict(color="#FFC857", width=4), thickness=0.8, value=alpha * 100
                 ),
             ),
-            title=dict(text="variance score R² (def. 2)", font=dict(size=15)),
+            title=dict(text="variance score R² (Def. 3)", font=dict(size=15)),
         )
     )
     fig.update_layout(height=height, **_LAYOUT)
@@ -236,7 +236,7 @@ def merge_history_figure(history: list, budget: float, ava_brut: float, height: 
         )
     )
     fig.update_layout(
-        title=dict(y=0.98, yanchor="top", text="Greedy agglomeration path (sec. 6.4)", font=dict(size=16)),
+        title=dict(y=0.98, yanchor="top", text="Greedy agglomeration path (sec. 6.3)", font=dict(size=16)),
         xaxis_title="merge step",
         yaxis=dict(title="TE² (residual variance)"),
         yaxis2=dict(title="AVA (EUR)", overlaying="y", side="right", showgrid=False),
@@ -278,7 +278,7 @@ def frontier_figure(points: list[dict], chosen: dict, var_total: float, alpha: f
         )
     )
     fig.update_layout(
-        title=dict(y=0.98, yanchor="top", text="AVA / fidelity efficient frontier (Remark 2)", font=dict(size=16)),
+        title=dict(y=0.98, yanchor="top", text="AVA / fidelity efficient frontier (complementary)", font=dict(size=16)),
         xaxis=dict(title="destroyed variance share  TE²/Var(ΔΠ) = 1 − R²"),
         yaxis=dict(title="AVA (EUR)"),
         legend=dict(orientation="h", y=1.02, yanchor="bottom"),
@@ -295,13 +295,13 @@ def spectral_figure(diag, height: int = 430) -> go.Figure:
     fig = go.Figure()
     fig.add_trace(
         go.Bar(
-            x=np.arange(1, n + 1), y=diag.loadings2, name="λ_ℓ ⟨ν,u_ℓ⟩² (mode load)",
+            x=np.arange(1, n + 1), y=diag.loadings2, name="λ_ℓ ⟨N∘s, u_ℓ⟩² (mode load)",
             marker=dict(color="#B388EB"),
         )
     )
     fig.add_trace(
         go.Scatter(
-            x=ks, y=resid_share, name="TE² lower bound / Var (Lemma 1)",
+            x=ks, y=resid_share, name="TE² lower bound / Var (spectral tail)",
             yaxis="y2", line=dict(color="#3DDC97", width=3),
         )
     )
@@ -348,7 +348,7 @@ def smile_decomposition_figure(rows: list[dict], alpha: float, height: int = 430
         annotation_text="α", annotation_font_color="#5BC0EB",
     )
     fig.update_layout(
-        title=dict(y=0.98, yanchor="top", text="Hierarchical netting, stage 1 — smile decomposition per tenor (sec. 3.2)",
+        title=dict(y=0.98, yanchor="top", text="Hierarchical netting, stage 1 — smile decomposition per tenor (complementary)",
                    font=dict(size=16)),
         barmode="group",
         yaxis=dict(title="exposure (EUR / vol pt units)"),
@@ -363,14 +363,14 @@ def smile_decomposition_figure(rows: list[dict], alpha: float, height: int = 430
 
 def two_bucket_figure(s_i: float, s_j: float, nu_i: float, var_total: float,
                       alpha: float, nu_j_now: float, rho_now: float, height: int = 430) -> go.Figure:
-    """Admissibility threshold rho_min as a function of |nu_j| (eq. 11)."""
+    """Admissibility threshold rho_min as a function of |nu_j| (eq. 8)."""
     nu_j = np.linspace(1.0, max(abs(nu_j_now) * 2.5, abs(nu_i) * 1.5), 200)
     rho_min = (s_i ** 2 + s_j ** 2) / (2 * s_i * s_j) - (1 - alpha) * var_total / (2 * nu_j ** 2 * s_i * s_j)
     rho_min = np.clip(rho_min, -1.05, 1.05)
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
-            x=nu_j, y=rho_min, name="ρ_min(|ν_j|) — eq. (11)",
+            x=nu_j, y=rho_min, name="ρ_min(|ν_j|) — eq. (8)",
             line=dict(color="#FFC857", width=3),
             fill="tozeroy", fillcolor="rgba(255,92,138,0.12)",
         )

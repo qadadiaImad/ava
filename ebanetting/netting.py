@@ -1,15 +1,20 @@
 """Netting as an aggregation operator and the EBA variance test
 (sections 4 and 5 of the note).
 
-A netting scheme is a partition P of the MK buckets, encoded as an (M, K)
-integer label matrix. Each set carries a representative shock
-d~sigma_k = sum_i w_i dsigma_i (W row-stochastic on the set), so that
+A netting scheme is a partition P of the grid cells, encoded as an (M, K)
+integer label matrix. Each set r carries a representative shock
+d~sigma_r = <W_r, dsigma> with W_r a row-stochastic (M, K) weight grid,
+netted exposure m_r = sum of N over the set (Def. 4), so that
 
-    proxy        = nu' P' W dsigma                              (5)
-    TE^2(P)      = (nu - W'P nu)' Sigma (nu - W'P nu)            (7)
-    AVA(P)       = kappa * sum_k |m_k| ~s_k                     (6)
-    variance ok  <=> TE^2 <= (1 - alpha) Var(DeltaPi)           (7)
-    floor ok     <=> AVA(P) >= kappa sqrt(nu' Sigma nu)         (8)
+    proxy        = sum_r m_r <W_r, dsigma>
+    residual     = N - sum_r m_r W_r            (an (M, K) matrix)
+    TE^2(P)      = Var(<residual, dsigma>)                       (6)
+    AVA(P)       = kappa * sum_r |m_r| ~s_r            (Def. 4)
+    variance ok  <=> TE^2 <= (1 - alpha) Var(DeltaPi)            (6)
+    floor ok     <=> AVA(P) >= kappa sqrt(Var(DeltaPi))          (7)
+
+All variances are computed in matrix form (Property 1) — ordinary
+matrix products and reductions, no Kronecker / tensor product.
 """
 
 from __future__ import annotations
@@ -61,53 +66,53 @@ class NettingScheme:
         return np.flatnonzero(self.labels.flatten() == k)
 
     # ------------------------------------------------------------------ #
-    def matrices(self, model: UncertaintyModel) -> tuple[np.ndarray, np.ndarray]:
-        """Aggregation matrix P (K, n) and weight matrix W (K, n), def. 1."""
-        flat = self.labels.flatten()
-        n, Ks = flat.size, self.n_sets
-        P = np.zeros((Ks, n))
-        P[flat, np.arange(n)] = 1.0
-        W = np.zeros((Ks, n))
-        nu, s = model.nu, model.bundle.s_vec
-        for k in range(Ks):
-            idx = np.flatnonzero(flat == k)
+    def weight_grids(self, model: UncertaintyModel) -> np.ndarray:
+        """(n_sets, M, K) representative-shock weights — one row-stochastic
+        grid per set (Def. 4 of the note)."""
+        vega, s = model.bundle.vega, model.bundle.s
+        out = np.zeros((self.n_sets, *self.labels.shape))
+        for k in range(self.n_sets):
+            mask = self.labels == k
             if self.weighting == "equal":
-                W[k, idx] = 1.0 / idx.size
+                out[k][mask] = 1.0 / mask.sum()
             elif self.weighting == "vega":
-                w = np.abs(nu[idx])
-                W[k, idx] = (w / w.sum()) if w.sum() > 0 else 1.0 / idx.size
-            else:  # pivot: risk-dominant bucket |nu_i| s_i of the set
-                pivot = idx[np.argmax(np.abs(nu[idx]) * s[idx])]
-                W[k, pivot] = 1.0
-        return P, W
+                w = np.where(mask, np.abs(vega), 0.0)
+                tot = w.sum()
+                out[k] = w / tot if tot > 0 else mask / mask.sum()
+            else:  # pivot: risk-dominant cell |N_mk| s_mk of the set
+                score = np.where(mask, np.abs(vega) * s, -np.inf)
+                out[k][np.unravel_index(np.argmax(score), score.shape)] = 1.0
+        return out
 
     def evaluate(self, model: UncertaintyModel, alpha: float) -> "SchemeEvaluation":
-        """Run the variance test (7) and the conservatism floor (8)."""
-        P, W = self.matrices(model)
-        nu, sigma = model.nu, model.sigma
-        m = P @ nu                                   # netted exposures
-        sigma_tilde = W @ sigma @ W.T                # ~Sigma = W Sigma W'
-        s_tilde = np.sqrt(np.clip(np.diag(sigma_tilde), 0.0, None))
-        residual = nu - W.T @ (P @ nu)               # nu - W'P nu
-        te2 = float(residual @ sigma @ residual)
+        """Run the variance test (6) and the conservatism floor (7)."""
+        vega, s = model.bundle.vega, model.bundle.s
+        grids = self.weight_grids(model)
+        m = np.array([float(vega[self.labels == k].sum()) for k in range(self.n_sets)])
+        # ~s_r^2 = Var(<W_r, dsigma>) — Property 1 in matrix form
+        s_tilde = np.sqrt(np.clip([model.variance_of(g) for g in grids], 0.0, None))
+        proxy = np.zeros_like(vega, dtype=float)
+        for m_k, grid in zip(m, grids):
+            proxy += m_k * grid
+        residual = vega - proxy                      # N - sum_r m_r W_r
+        te2 = max(model.variance_of(residual), 0.0)
         var_total = model.var_total
         r2 = 1.0 - te2 / var_total if var_total > 0 else 1.0
         ava = float(model.kappa * np.sum(np.abs(m) * s_tilde))
         budget = model.budget(alpha)
 
-        flat = self.labels.flatten()
         stats = []
         for k in range(self.n_sets):
-            idx = np.flatnonzero(flat == k)
+            mask = self.labels == k
             stats.append(
                 SetStat(
                     set_id=k,
-                    size=idx.size,
+                    size=int(mask.sum()),
                     net_vega=float(m[k]),
-                    gross_vega=float(np.abs(nu[idx]).sum()),
+                    gross_vega=float(np.abs(vega[mask]).sum()),
                     s_tilde=float(s_tilde[k]),
                     ava_netted=float(model.kappa * abs(m[k]) * s_tilde[k]),
-                    ava_addup=float(model.kappa * np.sum(np.abs(nu[idx]) * model.bundle.s_vec[idx])),
+                    ava_addup=float(model.kappa * np.sum(np.abs(vega[mask]) * s[mask])),
                 )
             )
 
@@ -172,14 +177,14 @@ class SchemeEvaluation:
 
 
 # --------------------------------------------------------------------------- #
-# Closed-form two-bucket case (sec. 6.2)
+# Closed-form two-node case (Theoreme 2, sec. 5.2 of the note)
 # --------------------------------------------------------------------------- #
 def two_bucket(
     nu_i: float, nu_j: float, s_i: float, s_j: float, rho: float,
     var_total: float, alpha: float, kappa: float,
 ) -> dict:
-    """Net bucket j onto pivot i: TE^2 (eq. 10), admissibility threshold
-    rho_min (eq. 11), and the AVA gain.
+    """Net node j onto pivot i: TE^2 (Th. 2 (i)), admissibility threshold
+    rho_min (eq. 8), and the AVA gain (Th. 2 (iii)).
 
     ``var_total`` is the *portfolio* Var(DeltaPi) appearing on the RHS of
     the test; for an isolated pair use the pair's own variance.

@@ -29,11 +29,20 @@ JSON schema (one document per as-of date / underlying / valuation exposure):
     }
 
 ``vega`` and ``s`` are M x K matrices (rows = tenors, columns = strikes,
-strikes expressed in moneyness K/F as recommended by the note, sec. 3.3).
-Correlations are given either separably (``corr_mat`` M x M and
-``corr_strike`` K x K, combined as a Kronecker product, eq. (4) of the
-note) or as a full ``corr_full`` (MK) x (MK) matrix on the row-major
-vectorisation; ``corr_full`` takes precedence when present.
+strikes expressed in moneyness K/F as recommended by the note, sec. 8).
+Correlations are given either in decoupled per-axis form (``corr_mat``
+M x M and ``corr_strike`` K x K, combined entrywise as
+rho[(m,k),(m',k')] = corr_mat[m,m'] * corr_strike[k,k'] — the decoupling
+hypothesis of the note's annex) or as a full ``corr_full`` (MK) x (MK)
+matrix on the row-major vectorisation; ``corr_full`` takes precedence
+when present.
+
+No Kronecker / tensor product is ever assembled: all variances and
+covariances are evaluated in matrix form with ordinary matrix products
+and a final sum reduction (Property 1 of the note),
+
+    Var(<V, dsigma>) = sum( W * (corr_mat @ W @ corr_strike) ),
+    W = V * s  (diagonal scaling by the uncertainties).
 """
 
 from __future__ import annotations
@@ -68,9 +77,14 @@ def nearest_correlation(rho: np.ndarray, eps: float = 1e-10) -> np.ndarray:
     w = np.clip(w, eps, None)
     fixed = (v * w) @ v.T
     d = np.sqrt(np.clip(np.diag(fixed), eps, None))
-    fixed = fixed / np.outer(d, d)
+    fixed = fixed / d[:, None] / d[None, :]
     np.fill_diagonal(fixed, 1.0)
     return fixed
+
+
+def _rank1(col: np.ndarray, row: np.ndarray) -> np.ndarray:
+    """Rank-one surface as an ordinary (M, 1) @ (1, K) matrix product."""
+    return np.asarray(col, dtype=float).reshape(-1, 1) @ np.asarray(row, dtype=float).reshape(1, -1)
 
 
 # --------------------------------------------------------------------------- #
@@ -80,9 +94,10 @@ def nearest_correlation(rho: np.ndarray, eps: float = 1e-10) -> np.ndarray:
 class MarketDataBundle:
     """Self-contained input set for one valuation exposure.
 
-    Vectorisation convention: row-major (C order), index ``i = m * K + k``
-    so that ``np.kron(corr_mat, corr_strike)`` is the correlation of
-    ``vega.flatten()`` — eq. (4) of the note.
+    Vectorisation convention (only relevant when a full ``corr_full`` is
+    supplied): row-major (C order), index ``i = m * K + k``. In the
+    decoupled case nothing is ever vectorised — quadratic forms are
+    evaluated directly on the (M, K) grid with ordinary matrix products.
     """
 
     tenors: list[str]
@@ -92,7 +107,7 @@ class MarketDataBundle:
     s: np.ndarray                          # (M, K)  vol points, > 0
     corr_mat: Optional[np.ndarray] = None      # (M, M)
     corr_strike: Optional[np.ndarray] = None   # (K, K)
-    corr_full: Optional[np.ndarray] = None     # (MK, MK), overrides Kronecker
+    corr_full: Optional[np.ndarray] = None     # (MK, MK), overrides the decoupled pair
     meta: dict = field(default_factory=dict)
 
     # -- shape ------------------------------------------------------------- #
@@ -108,32 +123,32 @@ class MarketDataBundle:
     def n(self) -> int:
         return self.M * self.K
 
-    @property
-    def nu(self) -> np.ndarray:
-        """vec(N), row-major."""
-        return self.vega.flatten()
-
-    @property
-    def s_vec(self) -> np.ndarray:
-        return self.s.flatten()
-
     # -- model ------------------------------------------------------------- #
-    def correlation(self) -> np.ndarray:
-        """Full (n, n) correlation matrix of the mid-uncertainty shocks."""
+    def covariance_of(self, expo_a: np.ndarray, expo_b: np.ndarray) -> float:
+        """Cov(<U, dsigma>, <V, dsigma>) for two (M, K) exposure matrices
+        (Property 1 of the note), with ordinary matrix products only.
+
+        Decoupled correlations (annex of the note): with W = V * s the
+        bilinear form is  sum( (U * s) * (corr_mat @ W @ corr_strike) ) —
+        a sandwich of usual matrix products followed by a sum reduction.
+        The full (MK, MK) covariance matrix is never assembled.
+        """
+        wa = np.asarray(expo_a, dtype=float) * self.s
+        wb = np.asarray(expo_b, dtype=float) * self.s
         if self.corr_full is not None:
-            return self.corr_full
+            return float(wa.flatten() @ self.corr_full @ wb.flatten())
         if self.corr_mat is None or self.corr_strike is None:
             raise ValueError(
                 "Provide either corr_full or both corr_mat and corr_strike."
             )
-        return np.kron(self.corr_mat, self.corr_strike)
+        return float(np.sum(wa * (self.corr_mat @ wb @ self.corr_strike)))
 
-    def covariance(self) -> np.ndarray:
-        """Sigma = D rho D  (sec. 2.1 of the note)."""
-        d = self.s_vec
-        return self.correlation() * np.outer(d, d)
+    def variance_of(self, exposure: np.ndarray) -> float:
+        """Var(<exposure, dsigma>) — quadratic case of :meth:`covariance_of`."""
+        return self.covariance_of(exposure, exposure)
 
-    def is_separable(self) -> bool:
+    def is_decoupled(self) -> bool:
+        """True when the correlation is given in per-axis decoupled form."""
         return self.corr_full is None
 
     # -- validation -------------------------------------------------------- #
@@ -321,18 +336,18 @@ class SyntheticDataSource(DataSource):
 
         if self.book == "smile_book":
             vega = (
-                np.outer(np.exp(-ten / 2.0), 220.0 * atm_w)
-                - np.outer(np.exp(-ten / 3.0), 900.0 * wing_w)
+                _rank1(np.exp(-ten / 2.0), 220.0 * atm_w)
+                - _rank1(np.exp(-ten / 3.0), 900.0 * wing_w)
             )
         elif self.book == "calendar_book":
             term = np.where(ten <= 0.5, 1.0, -0.8 * np.exp(-(ten - 0.5) / 4.0))
-            vega = np.outer(term, 260.0 * atm_w + 80.0 * np.exp(-0.5 * (x / 0.15) ** 2))
+            vega = _rank1(term, 260.0 * atm_w + 80.0 * np.exp(-0.5 * (x / 0.15) ** 2))
         else:  # mixed_desk
             term = np.where(ten <= 0.5, 1.0, -0.7 * np.exp(-(ten - 0.5) / 5.0))
             vega = (
-                np.outer(term, 240.0 * atm_w)               # calendar of straddles
-                + np.outer(np.exp(-ten / 4.0), 650.0 * x)   # risk-reversal
-                - np.outer(np.exp(-ten / 3.0), 520.0 * wing_w)  # short flies
+                _rank1(term, 240.0 * atm_w)               # calendar of straddles
+                + _rank1(np.exp(-ten / 4.0), 650.0 * x)   # risk-reversal
+                - _rank1(np.exp(-ten / 3.0), 520.0 * wing_w)  # short flies
             )
         vega = vega * 1_000.0                              # EUR / vol pt
         vega += rng.normal(0.0, 0.04 * np.abs(vega).mean(), size=(M, K))
@@ -346,8 +361,8 @@ class SyntheticDataSource(DataSource):
             * (1.0 + 0.18 * np.log1p(ten))[:, None]
         )
 
-        # Separable correlations (eq. 4): exponential kernels in log-tenor
-        # and in moneyness.
+        # Decoupled per-axis correlations (annex of the note): exponential
+        # kernels in log-tenor and in moneyness.
         lt = np.log(ten)
         corr_mat = np.exp(-np.abs(lt[:, None] - lt[None, :]) / 1.4)
         corr_strike = np.exp(-np.abs(stk[:, None] - stk[None, :]) / 0.22)

@@ -1,8 +1,10 @@
 """Vega Netting Studio — EBA Prudent Valuation (AVA MPU) variance test.
 
 Streamlit front-end for the ``ebanetting`` library. Implements the full
-theory of the technical note "Netting des sensibilités de volatilité sous
-contrainte de test de variance" (Delegated Regulation (EU) 2016/101).
+theory of the technical note "Netting des sensibilités vega sous le test
+de variance" (Delegated Regulation (EU) 2016/101): passage to the test
+nodes, variance test, conservatism floor and greedy optimal netting —
+all in ordinary matrix algebra (no tensor / Kronecker products).
 
 Run with:  streamlit run app.py
 """
@@ -26,6 +28,7 @@ from ebanetting import (
     greedy_netting,
     lagrangian_frontier,
     preset_labels,
+    project_bundle,
     robust_netting,
     score_scenario,
     smile_decomposition,
@@ -159,6 +162,43 @@ with st.sidebar:
         st.error("Bundle validation failed:\n\n- " + "\n- ".join(issues))
         st.stop()
 
+    st.subheader("Step 1 — passage to test nodes (sec. 3)")
+    granular_bundle = bundle
+    passage_res = None
+    use_passage = st.toggle(
+        "Project granular vega onto consensus pillars",
+        value=False,
+        help="Transport the system-grid vega onto the pillars where the "
+        "consensus uncertainty (s, ρ) is actually observable — the sandwich "
+        "Ñ = Aᵀ_T N A_K of Def. 2. Théorème 1: with interp weights aligned "
+        "on the surface construction, the passage destroys no information.",
+    )
+    if use_passage:
+        default_t = sorted(set(list(range(0, bundle.M, 2)) + [bundle.M - 1]))
+        default_k = sorted(set(list(range(0, bundle.K, 2)) + [bundle.K - 1]))
+        pillar_t = st.multiselect(
+            "Pillar tenors", options=list(range(bundle.M)), default=default_t,
+            format_func=lambda i: bundle.tenors[i],
+        )
+        pillar_k = st.multiselect(
+            "Pillar strikes", options=list(range(bundle.K)), default=default_k,
+            format_func=lambda i: str(bundle.strikes[i]),
+        )
+        convention = st.selectbox(
+            "Passage convention (sec. 3.2)",
+            ["interp", "equal", "quadrant"],
+            format_func={
+                "interp": "Interp-weighted (= surface weights, TE = 0 — Th. 1)",
+                "equal": "Equal-weighted (½/½ on bracketing pillars)",
+                "quadrant": "Quadrant (nearest pillar)",
+            }.get,
+        )
+        if pillar_t and pillar_k:
+            passage_res = project_bundle(bundle, pillar_t, pillar_k, convention)
+            bundle = passage_res.node_bundle
+        else:
+            st.warning("Select at least one pillar per axis — passage skipped.")
+
     st.subheader("Regulatory parameters")
     alpha = st.slider(
         "α — variance-test threshold (R² ≥ α)", 0.80, 0.99, 0.90, 0.01,
@@ -179,8 +219,9 @@ with st.sidebar:
             "equal": "Equal-weighted average",
         }.get,
     )
+    grid_word = "test nodes" if passage_res is not None else "buckets"
     st.caption(
-        f"Grid: **{bundle.M} tenors × {bundle.K} strikes = {bundle.n} buckets** · "
+        f"Grid: **{bundle.M} tenors × {bundle.K} strikes = {bundle.n} {grid_word}** · "
         f"{bundle.meta.get('underlying', '—')} · as-of {bundle.meta.get('asof', '—')}"
     )
 
@@ -190,8 +231,8 @@ bundle_json = bundle.to_json(sort_keys=True)
 # --------------------------------------------------------------------------- #
 # Tabs
 # --------------------------------------------------------------------------- #
-tab_theory, tab_data, tab_optimal, tab_scenario, tab_spectral, tab_audit = st.tabs(
-    ["🏛️ Theory", "📊 Market Data", "🧠 Optimal Netting", "🎯 Scenario Lab",
+tab_theory, tab_data, tab_passage, tab_optimal, tab_scenario, tab_spectral, tab_audit = st.tabs(
+    ["🏛️ Theory", "📊 Market Data", "🔁 Passage", "🧠 Optimal Netting", "🎯 Scenario Lab",
      "🔬 Spectral & Smile", "📋 Audit & Export"]
 )
 
@@ -231,61 +272,81 @@ The gap (2)−(3) is the **maximal theoretical netting benefit**. The regulator 
 grant (3) by default: the dependence structure must be demonstrated robust, hence the
 variance test on **partial, interpretable aggregations**.
 
-### 3 · 2-D structure: Kronecker separability
-On the strike × maturity grid the correlation is modelled as a tensor product
+### 3 · Step 1: the passage to the test nodes (sec. 3, Théorème 1)
+Uncertainty is observable only at the consensus pillars. The granular vega is
+transported there with two **passage matrices** (non-negative rows summing to 1,
+Def. 1) and the 2-D **sandwich** — an ordinary matrix product on each side:
             """
         )
-        st.latex(r"\rho=\rho^{\text{mat}}\otimes\rho^{\text{strike}} \tag{4}")
+        st.latex(r"\tilde N = A_T^{\top}\, N\, A_K \in \mathbb{R}^{q_T\times q_K} \quad\text{(Def. 2)}")
         st.markdown(
             """
-testable by likelihood ratio and drastically more parsimonious — crucial with short
-Totem histories. Under (4) the spectrum of $\Sigma$ factorises, so the spectral
-diagnostic runs on an $M\\times M$ and a $K\\times K$ matrix. Admissible partitions are
-restricted to **contiguous rectangles** $\\mathcal N_r = T_r\\times S_r$ — interpretable
-and documentable under art. 9(5). **Beware the absolute-strike grid** (sec. 3.3): fixed
+**Théorème 1 (coherence passage–surface)**: when the passage weights equal the
+**interpolation weights of the pricing-surface construction** ($A=B$), the passage
+destroys no information at first order — $\\mathrm{TE}_{\\text{passage}}=0$. Any other
+convention (quadrant, equal-weighted) creates a quantifiable error (eq. 5) that
+consumes the variance-test budget before any netting. Consequence (Remarque 3): the
+passage matrices are **not an optimisation variable** — they are pinned by the surface
+construction; only the downstream partition is optimised.
+
+### 3b · 2-D uncertainty: the decoupling hypothesis (annex)
+With per-axis correlations, the 2-D correlation decouples **entrywise**,
+$\\rho_{(a,b),(a',b')}=\\rho^{\\text{mat}}_{aa'}\\,\\rho^{\\text{strike}}_{bb'}$ — only
+$\\binom{q_T}{2}+\\binom{q_K}{2}$ parameters, each interpretable and stressable. **No
+Kronecker / tensor product is ever assembled**: every variance is evaluated in matrix
+form with usual matrix products and a final sum reduction (Property 1),
+            """
+        )
+        st.latex(
+            r"\operatorname{Var}\langle V,\Delta\sigma\rangle"
+            r"=\big\langle V\!\circ\! s,\ \rho^{\text{mat}}\,(V\!\circ\! s)\,\rho^{\text{strike}}\big\rangle"
+        )
+        st.markdown(
+            """
+Admissible partitions are restricted to **contiguous rectangles**
+$\\mathcal N_r = T_r\\times S_r$ on the node grid (sec. 6.3) — interpretable and
+documentable under art. 9(5). **Beware the absolute-strike grid** (sec. 8): fixed
 strikes drift in moneyness with spot, inflating strike-axis correlations and
 **over-justifying netting** — a non-conservative bias. Estimate $s,\\rho$ in moneyness
-$x=K/F(T)$ (or delta) coordinates and remap vegas via interpolation Jacobian; if stuck
-in absolute strike, stress $\\rho^{\\text{strike}}$ downward.
+$x=K/F(T)$ (or delta) coordinates and remap vegas via the interpolation Jacobian; if
+stuck in absolute strike, stress $\\rho^{\\text{strike}}$ downward.
             """
         )
     with c2:
         st.markdown(
             """
-### 4 · Netting as an aggregation operator
-A **netting scheme** is a partition $\\mathcal P=\\{\\mathcal N_1,\\dots,\\mathcal N_K\\}$
-of the buckets with aggregation matrix $P\\in\\{0,1\\}^{K\\times n}$, netted exposures
-$m_k=\\sum_{i\\in\\mathcal N_k}\\nu_i$ and representative shocks
-$\\Delta\\tilde\\sigma_k=\\sum_i w_i\\Delta\\sigma_i$ ($W$ the weight matrix,
-$\\tilde\\Sigma=W\\Sigma W^\\top$). The proxy P&L and the retained (conservative,
+### 4 · Netting as an aggregation operator (Def. 4)
+A **netting scheme** is a partition $\\mathcal P=\\{\\mathcal G_1,\\dots,\\mathcal G_S\\}$
+of the test nodes. Set $r$ has netted exposure $m_r=\\sum_{(a,b)\\in\\mathcal G_r}\\tilde N_{ab}$
+and a representative shock $\\Delta\\tilde\\sigma_r=\\langle W_r,\\Delta\\sigma\\rangle$
+with $W_r$ a row-stochastic weight grid. The proxy P&L and the retained (conservative,
 add-up across sets) AVA are
             """
         )
-        st.latex(r"\widehat{\Delta\Pi}_{\mathcal P}=\sum_k m_k\,\Delta\tilde\sigma_k=\nu^{\top}P^{\top}W\Delta\sigma \tag{5}")
-        st.latex(r"\mathrm{AVA}(\mathcal P)=\kappa\sum_{k}\lvert m_k\rvert\,\tilde s_k \tag{6}")
-        st.markdown("### 5 · The variance test")
+        st.latex(r"\widehat{\Delta\Pi}_{\mathcal P}=\sum_r m_r\,\Delta\tilde\sigma_r,\qquad \mathrm{AVA}(\mathcal P)=\kappa\sum_{r}\lvert m_r\rvert\,\tilde s_r \quad\text{(Def. 4)}")
+        st.markdown("### 5 · The variance test (Def. 3)")
         st.latex(
             r"\mathrm{TE}^2(\mathcal P)=\operatorname{Var}\!\big(\Delta\Pi-\widehat{\Delta\Pi}_{\mathcal P}\big)"
-            r"=(\nu-W^{\top}P\nu)^{\top}\Sigma\,(\nu-W^{\top}P\nu)\;\le\;(1-\alpha)\operatorname{Var}(\Delta\Pi) \tag{7}"
+            r"=\operatorname{Var}\Big\langle \tilde N-\textstyle\sum_r m_r W_r,\ \Delta\sigma\Big\rangle\;\le\;(1-\alpha)\operatorname{Var}(\Delta\Pi) \tag{6}"
         )
         st.markdown(
             "equivalently **R² ≥ α** (α ∈ [0.90, 0.95]) — the prudent-valuation analogue of "
-            "FRTB P&L-attribution tests. (7) controls **fidelity**; the **conservatism floor** controls level:"
+            "FRTB P&L-attribution tests. (6) controls **fidelity**; the **conservatism floor** controls level:"
         )
-        st.latex(r"\mathrm{AVA}(\mathcal P)\;\ge\;\kappa\sqrt{\nu^{\top}\Sigma\,\nu} \tag{8}")
+        st.latex(r"\mathrm{AVA}(\mathcal P)\;\ge\;\kappa\sqrt{\operatorname{Var}(\Delta\Pi)} \tag{7}")
         st.markdown("### 6 · Optimal netting")
         st.latex(
-            r"\mathcal P^{\star}=\arg\min_{\mathcal P\in\Pi_n}\;\kappa\sum_{k}\Big|\sum_{i\in\mathcal N_k}\nu_i\Big|\,\tilde s_k"
-            r"\quad\text{s.c. } \mathrm{TE}^2(\mathcal P)\le(1-\alpha)\nu^{\top}\Sigma\nu \text{ and } (8) \tag{9}"
+            r"\mathcal P^{\star}=\arg\min_{\mathcal P}\;\kappa\sum_{r}\Big|\sum_{(a,b)\in\mathcal G_r}\tilde N_{ab}\Big|\,\tilde s_r"
+            r"\quad\text{s.c. } \mathrm{TE}^2(\mathcal P)\le(1-\alpha)\operatorname{Var}(\Delta\Pi) \text{ and } (7) \tag{9}"
         )
         st.markdown(
-            "Combinatorial (Bell numbers), NP-hard → relaxations and controlled heuristics. "
-            "**Two-bucket closed form** (net $j$ onto pivot $i$):"
+            "Combinatorial (Bell numbers), NP-hard → greedy controlled construction. "
+            "**Two-node closed form** (Théorème 2 — net $j$ onto pivot $i$):"
         )
-        st.latex(r"\mathrm{TE}^2=\nu_j^2\big(s_i^2+s_j^2-2\rho s_i s_j\big) \tag{10}")
+        st.latex(r"\mathrm{TE}^2=\nu_j^2\big(s_i^2+s_j^2-2\rho s_i s_j\big) \quad\text{(Th. 2 i)}")
         st.latex(
             r"\text{admissible}\iff \rho\;\ge\;\frac{s_i^2+s_j^2}{2 s_i s_j}"
-            r"-\frac{(1-\alpha)\operatorname{Var}(\Delta\Pi)}{2\,\nu_j^2\,s_i s_j} \tag{11}"
+            r"-\frac{(1-\alpha)\operatorname{Var}(\Delta\Pi)}{2\,\nu_j^2\,s_i s_j} \tag{8}"
         )
         st.markdown(
             """
@@ -300,21 +361,24 @@ pointless: optimal netting targets opposite-sign, strongly correlated sets.
     st.divider()
     c3, c4 = st.columns(2)
     with c3:
-        st.markdown("### 6.3 · Spectral (PCA) floor — Lemma 1")
+        st.markdown("### Spectral floor — complementary diagnostic")
         st.latex(
-            r"\mathrm{TE}^2(\mathcal P)\;\ge\;\sum_{\ell>K}\lambda_\ell\,\langle\nu,u_\ell\rangle^2 \tag{12}"
+            r"\mathrm{TE}^2(\mathcal P)\;\ge\;\sum_{\ell>L}\lambda_\ell\,\langle N\!\circ\! s,\,u_\ell\rangle^2"
         )
         st.markdown(
             """
-For any rank-$K$ representation, the residual is bounded below by the tail of the
-spectrum of $\\Sigma$ weighted by the vega profile: the decay speed dictates the
+Working in whitened coordinates ($W=N\\circ s$), the per-axis eigendecompositions of
+$\\rho^{\\text{mat}}$ and $\\rho^{\\text{strike}}$ ($M\\times M$ and $K\\times K$ ordinary
+problems — no tensor product) decompose $\\operatorname{Var}(\\Delta\\Pi)$ exactly over
+2-D modes $u_a u_b^{\\top}$. For any representation on $L$ representative shocks the
+residual is bounded below by the spectral tail: the decay speed dictates the
 **minimal number of netting sets** $K^\\star(\\alpha)$. On a vol surface, 2–3 factors
 (level, term slope, smile) typically explain >90% of variance — $K^\\star$ is small
 *unless the book loads precisely on residual modes* (calendar butterflies, wings).
 PCA gives the diagnostic, **not** the solution: eigenvectors are not interpretable
 partitions, hence the constrained greedy algorithm.
 
-### 3.2 · Hierarchical netting
+### Hierarchical netting (complementary)
 **Stage 1 (smile, fixed maturity)**: collapse strikes onto the tranche level vega with
 the ATM shock; the residual is exactly the **smile-shape exposure**. The local basis
 $\\{1,(k-k_{\\text{ATM}}),(k-k_{\\text{ATM}})^2\\}$ separates *level* (nettable),
@@ -326,27 +390,27 @@ $L^2$: allocate the budget $(1-\\alpha)\\mathrm{Var}(\\Delta\\Pi)$ across stages
             """
         )
     with c4:
-        st.markdown("### 6.4 · Greedy agglomerative algorithm under variance budget")
+        st.markdown("### 6.3 · Greedy agglomerative algorithm under variance budget")
         st.markdown(
             """
-With budget $B=(1-\\alpha)\\,\\nu^\\top\\Sigma\\nu$:
+With budget $B=(1-\\alpha)\\operatorname{Var}(\\Delta\\Pi)$:
 
 1. **Init**: singletons, $\\mathrm{TE}^2=0$.
-2. **Iterate**: for every fusible pair of sets compute the AVA reduction $g_{ab}$ and
-   the residual-variance cost $c_{ab}$; merge the pair maximising $g_{ab}/c_{ab}$
-   (zero-cost merges first) while $\\mathrm{TE}^2+c_{ab}\\le B$.
-3. **Stop** when no merge fits the budget; verify the floor (8), otherwise unwind the
+2. **Iterate**: for every fusible pair of adjacent rectangular sets compute the AVA
+   reduction $g$ and the residual-variance cost $c$; merge the pair maximising $g/c$
+   (zero-cost merges first) while $\\mathrm{TE}^2+c\\le B$.
+3. **Stop** when no merge fits the budget; verify the floor (7), otherwise unwind the
    least efficient fusion.
 4. **Stability**: replay under rolling estimation windows and **adverse correlation
    stress** $\\rho\\to\\max(\\rho-\\delta,-1)$, $\\delta\\sim0.1\\!-\\!0.2$; retain only fusions
    robust across regimes — this is what makes the scheme defendable in model review.
 
-**Lagrangian variant (Remark 2)**: relax (9) into $\\min_{\\mathcal P}\\mathrm{AVA}(\\mathcal P)+\\mu\\,\\mathrm{TE}^2(\\mathcal P)$;
+**Lagrangian variant (complementary)**: relax (9) into $\\min_{\\mathcal P}\\mathrm{AVA}(\\mathcal P)+\\mu\\,\\mathrm{TE}^2(\\mathcal P)$;
 $\\mu\\ge0$ is the **marginal price of destroyed variance**. Sweeping $\\mu$ traces the
 AVA/fidelity efficient frontier; the retained point is the intersection with
 $\\mathrm{TE}^2=B$ — evidence that the scheme is not an arbitrary point.
 
-### 7 · IPV implementation points
+### 8 · IPV implementation points
 - **$s_i$**: Totem inter-contributor dispersion (sd or interquantile ranges rescaled to
   90%), else broker ranges / liquidity proxies. Few contributors ⇒ **inflate** $s_i$,
   don't smooth it.
@@ -374,7 +438,7 @@ with tab_data:
         f"uncertainty in *{meta.get('uncertainty_unit', 'vol pts')}*"
     )
     k1, k2, k3, k4 = st.columns(4)
-    k1.metric("Var(ΔΠ) — eq. (1)", eur(np.sqrt(model.var_total)) + "²" if False else f"{model.var_total:,.0f} €²")
+    k1.metric("Var(ΔΠ) — Property 1", eur(np.sqrt(model.var_total)) + "²" if False else f"{model.var_total:,.0f} €²")
     k2.metric("AVA add-up — eq. (2)", eur(model.ava_brut))
     k3.metric("AVA full diversification — eq. (3)", eur(model.ava_full))
     k4.metric(
@@ -429,8 +493,9 @@ The app is **bank-agnostic**. Two integration points, both in `ebanetting/dataso
    candidate netting schemes (e.g. the desk's current convention) into the Scenario Lab.
 
 **JSON contract** (one document per as-of / underlying / valuation exposure) — strikes in
-moneyness K/F as recommended in sec. 3.3; correlations either separable
-(`corr_mat` ⊗ `corr_strike`, eq. 4) or full (`corr_full`, takes precedence):
+moneyness K/F as recommended in sec. 8; correlations either decoupled
+(decoupled `corr_mat` × `corr_strike`, annex of the note — combined entrywise,
+never as a Kronecker matrix) or full (`corr_full`, takes precedence):
             """
         )
         st.code(
@@ -459,10 +524,118 @@ moneyness K/F as recommended in sec. 3.3; correlations either separable
         )
 
 # =========================================================================== #
+# PASSAGE
+# =========================================================================== #
+with tab_passage:
+    st.markdown(
+        "### Step 1 — passage from the system grid to the test nodes (sec. 3)\n"
+        "Consensus uncertainty lives at a few pillars; the granular vega is "
+        "transported there with the **sandwich of passage matrices** "
+        "Ñ = Aᵀ_T·N·A_K (Def. 2) — two ordinary matrix products, one per axis. "
+        "**Théorème 1**: aligning the passage weights on the interpolation "
+        "weights of the surface construction makes the passage lossless "
+        "(TE_passage = 0); quadrant / equal-weighted conventions create a "
+        "quantifiable tracking error (eq. 5) charged against the variance budget."
+    )
+    if passage_res is None:
+        st.info(
+            "Enable **“Project granular vega onto consensus pillars”** in the "
+            "sidebar to activate the passage. The rest of the app then runs on "
+            "the projected node grid, as the note prescribes."
+        )
+    else:
+        pr = passage_res
+        p1, p2, p3, p4 = st.columns(4)
+        p1.metric(
+            "Nodes", f"{bundle.M} × {bundle.K} = {bundle.n}",
+            delta=f"from {granular_bundle.M} × {granular_bundle.K} = {granular_bundle.n} buckets",
+        )
+        p2.metric(
+            "Vega conservation — Prop. 3",
+            "OK" if pr.conserves_vega else "BROKEN",
+            delta=f"Σ N = {pr.vega_total_granular:,.0f} → Σ Ñ = {pr.vega_total_nodes:,.0f}",
+            delta_color="off",
+        )
+        budget_passage = (1.0 - float(alpha)) * pr.var_reference
+        p3.metric(
+            "TE²_passage — eq. (5)",
+            f"{pr.te2_passage:,.0f} €²",
+            delta=(
+                f"{pr.te2_passage / budget_passage:.1%} of budget"
+                if budget_passage > 0 else "—"
+            ),
+            delta_color="off",
+        )
+        p4.metric("Convention", pr.convention)
+        if pr.convention != "interp":
+            st.warning(
+                "Non-interp passage: the tracking error above consumes the "
+                "variance-test budget **before any netting** (Théorème 1 / "
+                "Remarque 1). Document it and deduct it (sec. 8)."
+            )
+
+        cpa, cpb = st.columns(2)
+        with cpa:
+            st.plotly_chart(
+                charts.heatmap(
+                    granular_bundle.vega, granular_bundle.strikes, granular_bundle.tenors,
+                    "Granular vega N (system grid)", diverging=True, colorbar_title="ν",
+                ),
+                width="stretch",
+            )
+        with cpb:
+            st.plotly_chart(
+                charts.heatmap(
+                    bundle.vega, bundle.strikes, bundle.tenors,
+                    "Projected vega Ñ = Aᵀ_T N A_K (test nodes)", diverging=True,
+                    colorbar_title="ν̃",
+                ),
+                width="stretch",
+            )
+
+        st.markdown("#### Tracking error of the three conventions (vs interp weights — Théorème 1)")
+        st.dataframe(
+            pd.DataFrame(
+                [
+                    {
+                        "convention": conv,
+                        "TE²_passage (€²)": round(te2, 0),
+                        "share of budget": (
+                            f"{te2 / budget_passage:.1%}" if budget_passage > 0 else "—"
+                        ),
+                        "lossless (Th. 1)": "✓" if te2 <= 1e-9 * max(pr.var_reference, 1.0) else "✗",
+                    }
+                    for conv, te2 in pr.te2_by_convention.items()
+                ]
+            ),
+            width="stretch",
+            hide_index=True,
+        )
+
+        with st.expander("🔎 Passage matrices A_T and A_K (Def. 1 — rows sum to 1)"):
+            ca, cb = st.columns(2)
+            with ca:
+                st.markdown("**A_T (tenor axis)**")
+                st.dataframe(
+                    pd.DataFrame(pr.a_t, index=granular_bundle.tenors, columns=bundle.tenors),
+                    width="stretch",
+                )
+            with cb:
+                st.markdown("**A_K (strike axis)**")
+                st.dataframe(
+                    pd.DataFrame(
+                        pr.a_k,
+                        index=[str(s) for s in granular_bundle.strikes],
+                        columns=[str(s) for s in bundle.strikes],
+                    ),
+                    width="stretch",
+                )
+
+# =========================================================================== #
 # OPTIMAL NETTING
 # =========================================================================== #
 with tab_optimal:
-    st.markdown("### Greedy agglomerative optimisation under variance budget (sec. 6.4)")
+    st.markdown("### Greedy agglomerative optimisation under variance budget (sec. 6.3)")
     opt_col1, opt_col2 = st.columns([1, 1])
     with opt_col1:
         robust_mode = st.toggle(
@@ -498,23 +671,23 @@ with tab_optimal:
     m1, m2, m3, m4, m5 = st.columns(5)
     m1.metric("Netting sets", f"{scheme.n_sets}", delta=f"from {bundle.n} buckets")
     m2.metric("Variance score R²", f"{ev.r2:.2%}", delta=f"{(ev.r2 - alpha) * 100:+.2f} pts vs α")
-    m3.metric("AVA netted — eq. (6)", eur(ev.ava), delta=f"-{ev.ava_saving_pct:.0%} vs add-up")
+    m3.metric("AVA netted — Def. 4", eur(ev.ava), delta=f"-{ev.ava_saving_pct:.0%} vs add-up")
     m4.metric("Budget used", f"{ev.te2 / ev.budget:.0%}" if ev.budget > 0 else "—",
               delta=f"TE² = {ev.te2:,.0f} €²")
     m5.markdown(
-        f"**Variance test (7)** {verdict_badge(ev.passes_variance)}<br><br>"
-        f"**Floor (8)** {verdict_badge(ev.passes_floor)}",
+        f"**Variance test (6)** {verdict_badge(ev.passes_variance)}<br><br>"
+        f"**Floor (7)** {verdict_badge(ev.passes_floor)}",
         unsafe_allow_html=True,
     )
     if result.rolled_back:
-        st.warning(f"Floor (8) initially violated — {result.rolled_back} merge(s) rolled back (step 3).")
+        st.warning(f"Floor (7) initially violated — {result.rolled_back} merge(s) rolled back (step 3).")
 
     c1, c2 = st.columns([1.15, 1])
     with c1:
         st.plotly_chart(
             charts.partition_figure(
                 scheme.labels, bundle.vega, bundle.tenors, bundle.strikes,
-                title="Retained netting sets (rectangular paving, sec. 3.2)",
+                title="Retained netting sets (rectangular paving, sec. 6.3)",
                 set_stats=ev.set_stats,
             ),
             width="stretch",
@@ -532,7 +705,7 @@ with tab_optimal:
             width="stretch",
         )
     with c4:
-        show_frontier = st.toggle("Compute Lagrangian efficient frontier (Remark 2)", value=True)
+        show_frontier = st.toggle("Compute Lagrangian efficient frontier (complementary)", value=True)
         if show_frontier:
             with st.spinner("Sweeping μ — the shadow price of destroyed variance…"):
                 frontier = cached_frontier(bundle_json, float(alpha), float(kappa), weighting)
@@ -658,13 +831,13 @@ with tab_scenario:
             f"<div style='text-align:center'>{verdict_badge(ok, '✅ ' + report.verdict, '❌ ' + report.verdict)}</div>",
             unsafe_allow_html=True,
         )
-        st.metric("AVA of the scenario — eq. (6)", eur(ev_s.ava),
+        st.metric("AVA of the scenario — Def. 4", eur(ev_s.ava),
                   delta=f"-{ev_s.ava_saving_pct:.0%} vs add-up")
         st.metric("TE² vs budget", f"{ev_s.te2:,.0f} €²",
                   delta=f"budget {ev_s.budget:,.0f} €²", delta_color="off")
         st.markdown(
-            f"**Variance test (7)** {verdict_badge(ev_s.passes_variance)} &nbsp;&nbsp; "
-            f"**Floor (8)** {verdict_badge(ev_s.passes_floor)}",
+            f"**Variance test (6)** {verdict_badge(ev_s.passes_variance)} &nbsp;&nbsp; "
+            f"**Floor (7)** {verdict_badge(ev_s.passes_floor)}",
             unsafe_allow_html=True,
         )
     with g2:
@@ -685,7 +858,7 @@ with tab_scenario:
     st.session_state["scenario_eval"] = ev_s
     st.session_state["scenario_labels"] = labels.tolist()
 
-    with st.expander("🧪 Two-bucket sandbox — the closed-form intuition (eqs. 10–11)"):
+    with st.expander("🧪 Two-node sandbox — the closed-form intuition (Théorème 2, eq. 8)"):
         s1c, s2c, s3c = st.columns(3)
         with s1c:
             nu_i_tb = st.number_input("ν_i (pivot vega)", value=1000.0, step=50.0)
@@ -695,7 +868,7 @@ with tab_scenario:
             s_j_tb = st.number_input("s_j", value=0.55, min_value=0.01, step=0.05)
         with s3c:
             rho_tb = st.slider("ρ", -1.0, 1.0, 0.90, 0.01)
-            var_choice = st.radio("Var(ΔΠ) in the RHS of (7)", ["pair variance", "portfolio variance"],
+            var_choice = st.radio("Var(ΔΠ) in the RHS of (6)", ["pair variance", "portfolio variance"],
                                   horizontal=False)
         if var_choice == "portfolio variance":
             var_tb = model.var_total
@@ -706,8 +879,8 @@ with tab_scenario:
             )
         cf = two_bucket(nu_i_tb, nu_j_tb, s_i_tb, s_j_tb, rho_tb, var_tb, float(alpha), float(kappa))
         r1, r2_, r3, r4 = st.columns(4)
-        r1.metric("TE² — eq. (10)", f"{cf['te2']:,.0f}")
-        r2_.metric("ρ_min — eq. (11)", f"{cf['rho_min']:.3f}" if cf["rho_min"] > -1 else "always")
+        r1.metric("TE² — Th. 2 (i)", f"{cf['te2']:,.0f}")
+        r2_.metric("ρ_min — eq. (8)", f"{cf['rho_min']:.3f}" if cf["rho_min"] > -1 else "always")
         r3.metric("AVA gain", eur(cf["ava_gain"]))
         r4.markdown("**Admissible**<br>" + verdict_badge(cf["admissible"], "YES", "NO"), unsafe_allow_html=True)
         st.plotly_chart(
@@ -721,12 +894,12 @@ with tab_scenario:
 with tab_spectral:
     diag = spectral_diagnostic(model, alpha=float(alpha))
     s1, s2, s3 = st.columns(3)
-    s1.metric("K*(α) — spectral floor on #sets (Lemma 1)", f"{diag.k_star}")
+    s1.metric("K*(α) — spectral floor on #sets (diagnostic)", f"{diag.k_star}")
     s2.metric("Top-3 modes explain", f"{diag.explained_ratio(3):.1%}", delta="of vega-weighted variance")
     s3.metric("λ₁ / λ₂", f"{diag.eigenvalues[0] / max(diag.eigenvalues[1], 1e-12):.1f}×")
     st.plotly_chart(charts.spectral_figure(diag), width="stretch")
 
-    st.markdown("#### Leading eigenmodes of Σ on the grid — the *non-nettable directions* live in the tail")
+    st.markdown("#### Leading 2-D modes u_a u_bᵀ on the grid — the *non-nettable directions* live in the tail")
     mode_cols = st.columns(3)
     names = ["mode 1 (level)", "mode 2 (term/skew)", "mode 3 (smile)"]
     for l, col in enumerate(mode_cols):
@@ -745,7 +918,7 @@ with tab_spectral:
     st.caption(
         "Tranches whose R² falls below α carry material net risk-reversal / butterfly: "
         "their smile-shape exposure must stay in add-up (stage 1 of the hierarchical "
-        "netting, sec. 3.2); level vegas of passing tranches proceed to stage-2 "
+        "netting, complementary diagnostic); level vegas of passing tranches proceed to stage-2 "
         "term-structure netting under ρ_mat."
     )
 
