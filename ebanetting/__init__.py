@@ -54,10 +54,24 @@ from .clustering import (
     stable_cut,
 )
 from .reporting import audit_json, build_audit_pack
-from .scenario import ScenarioReport, preset_labels, score_scenario, smile_decomposition
-from .spectral import SpectralDiagnostic, spectral_diagnostic
+from .scenario import (
+    ScenarioReport,
+    fit_deformation_model,
+    preset_labels,
+    score_scenario,
+    smile_decomposition,
+    tranche_collapse_variance,
+    tranche_refinement,
+)
+from .spectral import (
+    SpectralDiagnostic,
+    node_covariance,
+    spectral_clean,
+    spectral_diagnostic,
+    subspace_stability,
+)
 
-__version__ = "2.1.0"
+__version__ = "2.2.0"
 
 __all__ = [
     "PassageResult",
@@ -103,5 +117,11 @@ __all__ = [
     "score_scenario",
     "smile_decomposition",
     "SpectralDiagnostic",
+    "node_covariance",
+    "spectral_clean",
     "spectral_diagnostic",
+    "subspace_stability",
+    "fit_deformation_model",
+    "tranche_collapse_variance",
+    "tranche_refinement",
 ]

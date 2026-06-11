@@ -451,3 +451,113 @@ def test_stability_undoes_fragile_fusions(bundle):
     base_only = stable_cut(bundle, {}, alpha=0.9, kappa=KAPPA_90,
                            epsilon=0.8, dendrogram=dendro)
     assert out["n_merges"] <= base_only["n_merges"]
+
+
+# --------------------------------------------------------------------------- #
+# Sec. 6.1 — the spectral diagnostic on Sigma at the nodes
+# --------------------------------------------------------------------------- #
+def test_factor_variance_decomposition_is_exact(model):
+    """Prop. 7: sum c_l^2 lambda_l = Var(DeltaPi), exactly."""
+    diag = spectral_diagnostic(model, alpha=0.9)
+    assert diag.loadings2.sum() == pytest.approx(model.var_total, rel=1e-10)
+    # Prop. 6 (iii): sum lambda = tr(Sigma) = sum s_i^2
+    assert diag.eigenvalues.sum() == pytest.approx(np.sum(model.bundle.s ** 2), rel=1e-10)
+    # tau is increasing from 0 to 1
+    assert diag.inertia[0] == 0.0
+    assert diag.inertia[-1] == pytest.approx(1.0)
+    assert np.all(np.diff(diag.inertia) >= -1e-12)
+
+
+def test_spectral_floor_against_low_rank_proxy(model):
+    """Theoreme 3: a proxy whose weights live in span(u_1..u_L) cannot beat
+    the tail floor sum_{l>L} c_l^2 lambda_l."""
+    from ebanetting import node_covariance
+
+    bundle = model.bundle
+    diag = spectral_diagnostic(model, alpha=0.9)
+    sigma = node_covariance(bundle)
+    nu = bundle.vega.flatten()
+    L = 3
+    u = diag.eigenvectors[:, :L]
+    # best L-factor proxy of DeltaPi: w = projection of nu on span(u_1..u_L)
+    w = u @ (u.T @ nu)
+    resid = nu - w
+    te2 = float(resid @ sigma @ resid)
+    floor = diag.residual_curve[L]
+    assert te2 >= floor - 1e-9 * model.var_total
+    assert te2 == pytest.approx(floor, rel=1e-8)  # the projection attains it
+
+
+def test_spectral_clean_guard_material(bundle):
+    """U3: the cleaned covariance is a valid bundle, preserves the total
+    uncertainty tr(Sigma), and the conservatism guard is measurable."""
+    from ebanetting import node_covariance, spectral_clean
+
+    cleaned = spectral_clean(bundle, tau=0.95)
+    assert cleaned.validate() == []
+    tr_before = float(np.trace(node_covariance(bundle)))
+    tr_after = float(np.trace(node_covariance(cleaned)))
+    assert tr_after == pytest.approx(tr_before, rel=1e-8)
+    # guard material: netting benefit comparable on both bundles (the
+    # trace is preserved globally, individual s_i may shift slightly)
+    m0 = UncertaintyModel(bundle=bundle)
+    m1 = UncertaintyModel(bundle=cleaned)
+    assert m1.ava_full <= m1.ava_brut + 1e-9
+    assert m0.ava_brut == pytest.approx(m1.ava_brut, rel=0.05)
+
+
+def test_subspace_stability_bounds(bundle):
+    """U4: identical covariances give cosines 1; stressed ones stay in [0, 1]."""
+    from ebanetting import subspace_stability
+
+    same = subspace_stability(bundle, bundle, L=3)
+    np.testing.assert_allclose(same, 1.0, atol=1e-10)
+    crossed = subspace_stability(bundle, stress_bundle(bundle, 0.2), L=3)
+    assert np.all(crossed <= 1.0 + 1e-12) and np.all(crossed >= 0.0)
+
+
+# --------------------------------------------------------------------------- #
+# Sec. 6.2 — deformation model and Theoreme 4
+# --------------------------------------------------------------------------- #
+def test_deformation_model_recovery_and_th4():
+    """Simulate shocks under the model (9); the fit recovers the shape-shock
+    variances and Th. 4 (iii) matches the simulated collapse residual."""
+    from ebanetting import fit_deformation_model, tranche_collapse_variance
+
+    rng = np.random.default_rng(42)
+    x = np.array([0.80, 0.90, 1.00, 1.10, 1.20]) - 1.0
+    atm = 2
+    T = 20000
+    var_s, var_c = 0.30 ** 2, 0.15 ** 2
+    dS = rng.normal(0, np.sqrt(var_s), T)
+    dC = rng.normal(0, np.sqrt(var_c), T)
+    atm_shock = rng.normal(0, 0.5, T)
+    z = x - x[atm]
+    shocks = atm_shock[:, None] + dS[:, None] * z[None, :] + dC[:, None] * z[None, :] ** 2
+    fit = fit_deformation_model(x, shocks, atm)
+    assert fit["r2"] == pytest.approx(1.0, abs=1e-10)        # noiseless model
+    assert fit["var_skew"] == pytest.approx(var_s, rel=0.05)
+    assert fit["var_curv"] == pytest.approx(var_c, rel=0.05)
+    # Th. 4: collapse residual variance of a book on this tranche
+    nu = np.array([300.0, -150.0, 800.0, -200.0, -400.0])
+    rr, fly = float(nu @ z), float(nu @ z ** 2)
+    closed = tranche_collapse_variance(rr, fly, fit["var_skew"], fit["var_curv"],
+                                       fit["cov_skew_curv"])
+    resid = shocks - shocks[:, [atm]]
+    simulated = float(np.var(resid @ nu))
+    assert closed == pytest.approx(simulated, rel=0.02)
+    # Th. 4 (ii): a pure-level book has zero collapse residual
+    level_book = np.full(5, 100.0)
+    assert tranche_collapse_variance(float(level_book @ z), float(level_book @ z ** 2),
+                                     fit["var_skew"], fit["var_curv"]) == pytest.approx(
+        float(np.var(resid @ level_book)), abs=1e-6)
+
+
+def test_tranche_refinement_is_addup_of_components():
+    """S2: level netted on ATM + RR / FLY carved out in add-up."""
+    from ebanetting import tranche_refinement
+
+    out = tranche_refinement(level=500.0, rr=-120.0, fly=80.0,
+                             s_atm=0.3, s_skew=0.6, s_fly=0.9, kappa=KAPPA_90)
+    assert out["ava_total"] == pytest.approx(
+        KAPPA_90 * (500.0 * 0.3 + 120.0 * 0.6 + 80.0 * 0.9))

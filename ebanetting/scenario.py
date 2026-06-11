@@ -7,10 +7,17 @@ regression of DeltaPi on the netted proxy (Definition 3): the scenario
 passes the EBA variance test iff R^2 >= alpha, and the conservatism
 floor (eq. 7) iff AVA(P) >= kappa sqrt(Var(DeltaPi)).
 
-Also implements a hierarchical smile decomposition (complementary): per
-tenor, project the strike profile of vega on the local basis
-{1, (k - k_ATM), (k - k_ATM)^2} to isolate level (nettable),
-risk-reversal and butterfly exposures.
+Also implements the smile decomposition of sec. 6.2: per tranche, the
+aggregates m_a (net level), RR_a (net risk-reversal) and FLY_a (net
+butterfly) are the book's coordinates in the standard smile-strategy
+basis. Under the two-mode deformation model (Def. 5, eq. 9), the residual
+of collapsing a tranche onto its ATM pivot is carried *only* by RR_a and
+FLY_a (Theoreme 4 — the net level nets perfectly whatever its size),
+with the closed-form go/no-go variance of Th. 4 (iii). The model is
+fitted on daily data by cross-sectional regression
+(:func:`fit_deformation_model`), and the correct refinement when the
+collapse fails keeps the netted level and carves RR/FLY out in add-up
+(:func:`tranche_refinement`).
 """
 
 from __future__ import annotations
@@ -23,7 +30,15 @@ from .datasource import MarketDataBundle
 from .model import UncertaintyModel
 from .netting import NettingScheme, SchemeEvaluation, Weighting
 
-__all__ = ["ScenarioReport", "score_scenario", "preset_labels", "smile_decomposition"]
+__all__ = [
+    "ScenarioReport",
+    "score_scenario",
+    "preset_labels",
+    "smile_decomposition",
+    "fit_deformation_model",
+    "tranche_collapse_variance",
+    "tranche_refinement",
+]
 
 
 @dataclass(frozen=True)
@@ -80,13 +95,15 @@ def preset_labels(name: str, M: int, K: int) -> np.ndarray:
 
 
 def smile_decomposition(bundle: MarketDataBundle) -> list[dict]:
-    """Stage-1 hierarchical netting diagnostic (complementary).
+    """Per-tranche smile aggregates and exact collapse residual (sec. 6.2).
 
-    Per tenor m, decompose the vega strike-profile on the local basis
-    {1, x, x^2} with x = k - k_ATM (here moneyness offset K/F - 1):
-    the level component is nettable, the risk-reversal and butterfly
-    residuals carry their own (wider) consensus uncertainty and are the
-    reason per-tranche variance tests fail.
+    Per tenor m, the basis {1, x, x^2} with x = k - k_ATM (moneyness
+    offset K/F - 1) gives the three aggregates of Theoreme 4: net level
+    m_a (nets perfectly), net risk-reversal RR_a and net butterfly FLY_a
+    (which carry the entire collapse residual under the deformation
+    model). te2_line is the *exact* residual variance of collapsing the
+    tranche onto its ATM pivot under the bundle's own covariance — the
+    engine counterpart of the closed form of Th. 4 (iii).
     """
     x = np.asarray(bundle.strikes) - 1.0
     out = []
@@ -119,3 +136,97 @@ def smile_decomposition(bundle: MarketDataBundle) -> list[dict]:
             }
         )
     return out
+
+
+# --------------------------------------------------------------------------- #
+# Sec. 6.2 — the two-mode deformation model (Def. 5, Theoreme 4)
+# --------------------------------------------------------------------------- #
+def fit_deformation_model(x: np.ndarray, shocks: np.ndarray, atm_index: int) -> dict:
+    """Fit the deformation model (Def. 5, eq. 9) on a tranche history.
+
+    Per date t, regress the strike shocks net of the ATM,
+    y_j = dsigma_j(t) - dsigma_ATM(t), on [(x_j - x0), (x_j - x0)^2]
+    (cross-sectional least squares — ordinary matrix algebra); the
+    coefficients are the skew and curvature shocks DeltaS(t), DeltaC(t),
+    whose sample (co)variances and the residual variance sigma_eps^2 feed
+    Th. 4 (iii). The pooled R^2 measures the validity of the model —
+    exactly the material of the stability run (sec. 7.4), and the
+    criterion for choosing the moneyness coordinate (S4).
+
+    Parameters: x (K,) moneyness coordinates; shocks (T, K) history of
+    tranche shocks; atm_index position of the ATM pivot in x.
+    """
+    x = np.asarray(x, dtype=float)
+    shocks = np.asarray(shocks, dtype=float)
+    z = x - x[atm_index]
+    design = np.column_stack([z, z ** 2])              # (K, 2)
+    y = shocks - shocks[:, [atm_index]]                # (T, K), net of ATM
+    coeffs, *_ = np.linalg.lstsq(design, y.T, rcond=None)   # (2, T)
+    dS, dC = coeffs[0], coeffs[1]
+    resid = y.T - design @ coeffs                      # (K, T)
+    ss_res = float(np.sum(resid ** 2))
+    ss_tot = float(np.sum((y - y.mean()) ** 2))
+    n_eff = max(resid.shape[1] * (resid.shape[0] - 2), 1)
+    return {
+        "var_skew": float(np.var(dS)),
+        "var_curv": float(np.var(dC)),
+        "cov_skew_curv": float(np.cov(dS, dC)[0, 1]) if dS.size > 1 else 0.0,
+        "sigma_eps2": ss_res / n_eff,
+        "r2": 1.0 - ss_res / ss_tot if ss_tot > 0 else 1.0,
+        "skew_shocks": dS,
+        "curv_shocks": dC,
+    }
+
+
+def tranche_collapse_variance(
+    rr: float,
+    fly: float,
+    var_skew: float,
+    var_curv: float,
+    cov_skew_curv: float = 0.0,
+    sigma_eps2: float = 0.0,
+    sum_nu2: float = 0.0,
+) -> float:
+    """Closed-form go/no-go of the tranche collapse (Theoreme 4 (iii)):
+
+    Var(R_a) = RR_a^2 Var(dS) + FLY_a^2 Var(dC)
+               + 2 RR_a FLY_a Cov(dS, dC) + sigma_eps^2 sum nu_j^2.
+
+    The net level m_a does not appear (Th. 4 (ii)): the collapse
+    represents the level exposure perfectly whatever its size. The
+    collapse passes the variance test iff this quantity fits in the
+    budget allocated to the tranche — the interpretable version of the
+    correlation condition (8): not "insufficient correlation" but "the
+    book carries this much net RR on this tranche"."""
+    return (
+        rr ** 2 * var_skew
+        + fly ** 2 * var_curv
+        + 2.0 * rr * fly * cov_skew_curv
+        + sigma_eps2 * sum_nu2
+    )
+
+
+def tranche_refinement(
+    level: float,
+    rr: float,
+    fly: float,
+    s_atm: float,
+    s_skew: float,
+    s_fly: float,
+    kappa: float,
+) -> dict:
+    """The correct refinement when the collapse fails (S2): keep the
+    netted level on the ATM shock, carve the net risk-reversal and net
+    butterfly out in add-up with their own consensus uncertainties
+    (skew / fly spread dispersions when contributed, else deduced from
+    the points). Only the genuinely unjustified part of the netting is
+    given up."""
+    ava_level = kappa * abs(level) * s_atm
+    ava_rr = kappa * abs(rr) * s_skew
+    ava_fly = kappa * abs(fly) * s_fly
+    return {
+        "ava_level": float(ava_level),
+        "ava_rr": float(ava_rr),
+        "ava_fly": float(ava_fly),
+        "ava_total": float(ava_level + ava_rr + ava_fly),
+    }

@@ -33,19 +33,21 @@ correlation stress, and the full art. 9(5) audit trail.
 | Variance test TE² ≤ (1−α)·Var(ΔΠ), R² ≥ α (§4, eq. 6, Def. 3) | `NettingScheme.evaluate()` |
 | Conservatism floor AVA(P) ≥ κ√Var(ΔΠ) (eq. 7) | `SchemeEvaluation.passes_floor` |
 | Two-node closed form (§5.2, Théorème 2, eq. 8) | `two_bucket()` — unit-tested against the engine |
-| Greedy agglomerative algorithm under budget (§6.3) | `ebanetting/optimizer.py` — `greedy_netting()` |
-| Rectangular contiguous pavings of the node grid (§6.3) | rectangle-union merge candidates |
-| Adverse correlation stress ρ → max(ρ−δ,−1) (step 4, §6.3) | `stress_bundle()`, `robust_netting()` |
+| Spectral diagnostic: factors of Σ, risk map, Théorème 3 floor (§6.1) | `ebanetting/spectral.py` — `spectral_diagnostic()` |
+| Spectral cleaning of a noisy Σ̂ + subspace stability (§6.1.4, U3/U4) | `spectral_clean()`, `subspace_stability()` |
+| Smile deformation model & Théorème 4 go/no-go (§6.2, Déf. 5) | `fit_deformation_model()`, `tranche_collapse_variance()` |
+| Collapse refinement: level netted, RR/FLY carved out (§6.2, S2) | `tranche_refinement()` |
+| Greedy agglomerative algorithm under budget (§7.3) | `ebanetting/optimizer.py` — `greedy_netting()` |
+| Rectangular contiguous pavings of the node grid (§7.3) | rectangle-union merge candidates |
+| Adverse correlation stress ρ → max(ρ−δ,−1) (step 4, §7.3) | `stress_bundle()`, `robust_netting()` |
 | Restriction without loss R_T Δσ_fin R_Kᵀ, off-grid residual (§3.5, Prop. 5, Rem. 4) | `restriction_matrix()`, `offgrid_residual()` |
-| Shock families & stability test — same partition, other Σ (§6.4) | `stability_report()`, `stable_cut()` |
-| Base-risk distance d_ij and portfolio-free dendrogram (§6.5, Run 1) | `ebanetting/clustering.py` — `build_dendrogram()` |
-| Portfolio-free TE bound, TE ≤ ε·AVA_brut/κ (§6.5, Prop. 6) | `DecoupledResult.te_bound` |
-| Run 2: AVA on the cut + per-book TE²/Var check (§6.5) | `decoupled_netting()`, `evaluate_cut()` |
-| Decoupling hypothesis ρ2D = ρ_mat·ρ_strike, entrywise (annex) | per-axis `corr_mat` / `corr_strike` inputs |
-| Art. 9(5) evidence pack (§8) | `ebanetting/reporting.py` |
-| Spectral lower bound K*(α) (complementary diagnostic) | `ebanetting/spectral.py` — per-axis eigh |
+| Shock families & stability test — same partition, other Σ (§7.4) | `stability_report()`, `stable_cut()` |
+| Base-risk distance d_ij and portfolio-free dendrogram (§7.5, Run 1) | `ebanetting/clustering.py` — `build_dendrogram()` |
+| Portfolio-free TE bound, TE ≤ ε·AVA_brut/κ (§7.5, Prop. 8) | `DecoupledResult.te_bound` |
+| Run 2: AVA on the cut + per-book TE²/Var check (§7.5) | `decoupled_netting()`, `evaluate_cut()` |
+| Decoupling hypothesis ρ2D = ρ_mat·ρ_strike, entrywise (annex §8) | per-axis `corr_mat` / `corr_strike` inputs |
+| Art. 9(5) evidence pack (§9) | `ebanetting/reporting.py` |
 | Lagrangian efficient frontier (complementary) | `lagrangian_frontier()` |
-| Hierarchical netting / smile decomposition (complementary) | `scenario.smile_decomposition()` |
 
 ## Quick start
 
@@ -74,18 +76,19 @@ python -m pytest tests/ -q
   the grid, AVA waterfall (add-up → netted vs the diversification floor),
   budget-consumption path, Lagrangian efficient frontier, robust mode with
   correlation-stress regimes.
-- **🌳 Structure & Stability** — the decoupled architecture of §6.5: the portfolio-free
-  dendrogram on the base risk d_ij (Run 1), the ε cut slider with the Prop. 6 bound and
-  the per-book TE²/Var check (Run 2), and the §6.4 stability protocol replaying the
+- **🌳 Structure & Stability** — the decoupled architecture of §7.5: the portfolio-free
+  dendrogram on the base risk d_ij (Run 1), the ε cut slider with the Prop. 8 bound and
+  the per-book TE²/Var check (Run 2), and the §7.4 stability protocol replaying the
   variance test of the same partition under alternative covariances (stress regimes or
   an uploaded Σ_daily / Σ_bidask bundle) — unstable fusions are undone.
 - **🎯 Scenario Lab** — score **any** netting scheme: edit the (M × K) label matrix in
   place, upload one, or start from presets / the optimal solution. Returns the
   **variance score R²** (gauge vs α), the EBA verdict (test 6 + floor 7), the AVA
   impact and per-set statistics. Includes the two-node closed-form sandbox (Th. 2).
-- **🔬 Spectral & Smile** — per-axis spectrum weighted by the scaled vega profile,
-  K*(α), leading 2-D modes u_a·u_bᵀ on the grid, and the per-tenor level /
-  risk-reversal / butterfly decomposition with per-tranche tests.
+- **🔬 Spectral & Smile** — §6: the factors of Σ at the nodes (Prop. 6–7), the book's
+  risk map c_ℓ²λ_ℓ, the Théorème 3 floor K*(α), the inertia ratio τ_L, leading
+  eigendirections on the grid, and the per-tranche net level / risk-reversal /
+  butterfly decomposition (Théorème 4) with per-tranche tests.
 - **📋 Audit & Export** — the art. 9(5) evidence pack: retained partition, realised R²,
   frontier, stress table, greedy trace, SHA-256 input fingerprint — one JSON download.
 
@@ -115,7 +118,7 @@ exposure:
                    "vega_unit": "EUR per vol point", "uncertainty_unit": "vol points" },
   "tenors":      ["1M", "3M", ...],          // M tenor labels
   "tenor_years": [0.0833, 0.25, ...],        // M year fractions
-  "strikes":     [0.80, 0.90, ...],          // K moneyness levels K/F (recommended, §3.3)
+  "strikes":     [0.80, 0.90, ...],          // K moneyness levels K/F (recommended, §9)
   "vega":        [[...], ...],               // M x K signed vegas  ∂V/∂σ(T, K)
   "s":           [[...], ...],               // M x K uncertainty std-devs, > 0
   "corr_mat":    [[...], ...],               // M x M  (decoupled tenor correlation, annex)
@@ -125,7 +128,7 @@ exposure:
 ```
 
 Conventions: row-major vectorisation (bucket *i = m·K + k*, only relevant for
-`corr_full`); strikes in **moneyness K/F** as recommended by §8 (estimating the
+`corr_full`); strikes in **moneyness K/F** as recommended by §9 (estimating the
 uncertainty model on an absolute-strike grid inflates
 strike-axis correlations and over-justifies netting — a non-conservative bias);
 correlations estimated on **variations** of consensus marks with Ledoit–Wolf shrinkage.
@@ -165,10 +168,10 @@ eba-vega-netting/
 │   ├── datasource.py       #   data contract + matrix-form quadratic engine (no kron)
 │   ├── model.py            #   ΔΠ, Var, AVA extremes
 │   ├── passage.py          #   step 1: passage (sandwich, Th. 1) + restriction (Prop. 5)
-│   ├── clustering.py       #   sec. 6.5 dendrogram / Prop. 6 / Run 2 + sec. 6.4 stability
+│   ├── clustering.py       #   sec. 7.5 dendrogram / Prop. 8 / Run 2 + sec. 7.4 stability
 │   ├── netting.py          #   partition operator, variance test, floor, two-node
 │   ├── optimizer.py        #   greedy under budget, frontier, correlation stress
-│   ├── spectral.py         #   per-axis spectral bound, K*(α)
+│   ├── spectral.py         #   sec. 6.1: factors of Σ, Th. 3 floor, cleaning, stability
 │   ├── scenario.py         #   scenario scoring, presets, smile decomposition
 │   └── reporting.py        #   art. 9(5) audit pack
 ├── ui/charts.py            # Plotly figure builders
@@ -176,7 +179,7 @@ eba-vega-netting/
 └── tests/test_core.py      # closed-forms vs engine, budget/floor invariants
 ```
 
-## Caveats (faithful to the note, §8)
+## Caveats (faithful to the note, §9)
 
 - First-order model: for books with material volga/vanna (cliquets, barriers), validate
   that second-order terms do not reorder the sets — otherwise net on full scenarios.

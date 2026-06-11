@@ -236,7 +236,7 @@ def merge_history_figure(history: list, budget: float, ava_brut: float, height: 
         )
     )
     fig.update_layout(
-        title=dict(y=0.98, yanchor="top", text="Greedy agglomeration path (sec. 6.3)", font=dict(size=16)),
+        title=dict(y=0.98, yanchor="top", text="Greedy agglomeration path (sec. 7.3)", font=dict(size=16)),
         xaxis_title="merge step",
         yaxis=dict(title="TE² (residual variance)"),
         yaxis2=dict(title="AVA (EUR)", overlaying="y", side="right", showgrid=False),
@@ -295,13 +295,13 @@ def spectral_figure(diag, height: int = 430) -> go.Figure:
     fig = go.Figure()
     fig.add_trace(
         go.Bar(
-            x=np.arange(1, n + 1), y=diag.loadings2, name="λ_ℓ ⟨N∘s, u_ℓ⟩² (mode load)",
+            x=np.arange(1, n + 1), y=diag.loadings2, name="c_ℓ²λ_ℓ — risk map (Prop. 7)",
             marker=dict(color="#B388EB"),
         )
     )
     fig.add_trace(
         go.Scatter(
-            x=ks, y=resid_share, name="TE² lower bound / Var (spectral tail)",
+            x=ks, y=resid_share, name="TE² floor / Var (Théorème 3)",
             yaxis="y2", line=dict(color="#3DDC97", width=3),
         )
     )
@@ -348,7 +348,7 @@ def smile_decomposition_figure(rows: list[dict], alpha: float, height: int = 430
         annotation_text="α", annotation_font_color="#5BC0EB",
     )
     fig.update_layout(
-        title=dict(y=0.98, yanchor="top", text="Hierarchical netting, stage 1 — smile decomposition per tenor (complementary)",
+        title=dict(y=0.98, yanchor="top", text="Smile decomposition per tranche — net level / RR / FLY (sec. 6.2, Th. 4)",
                    font=dict(size=16)),
         barmode="group",
         yaxis=dict(title="exposure (EUR / vol pt units)"),
@@ -422,7 +422,7 @@ def dendrogram_figure(merges: list, epsilon: float, n_applied: int, height: int 
         )
     fig.update_layout(
         title=dict(y=0.98, yanchor="top",
-                   text="Dendrogram of the test nodes — base risk d_ij, portfolio-free (sec. 6.5)",
+                   text="Dendrogram of the test nodes — base risk d_ij, portfolio-free (sec. 7.5)",
                    font=dict(size=16)),
         xaxis_title="merge step (increasing base risk)",
         yaxis_title="set ε = max d(j, pivot)/s_j",

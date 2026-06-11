@@ -1,9 +1,9 @@
-"""Optimal netting under the variance budget (sec. 6 of the note).
+"""Optimal netting under the variance budget (sec. 7 of the note).
 
-The exact problem (9) is NP-hard (Bell-number combinatorics), so the
+The exact problem (10) is NP-hard (Bell-number combinatorics), so the
 search space is restricted to *rectangular contiguous pavings* of the
-node grid (sec. 6.3 — interpretable, documentable under art. 9(5)) and
-solved with the greedy agglomerative algorithm of sec. 6.3:
+node grid (sec. 7.3 — interpretable, documentable under art. 9(5)) and
+solved with the greedy agglomerative algorithm of sec. 7.3:
 
     start from singletons, repeatedly merge the pair of adjacent
     rectangles maximising  (AVA reduction) / (TE^2 cost),  zero-cost
@@ -11,7 +11,7 @@ solved with the greedy agglomerative algorithm of sec. 6.3:
     then verify the conservatism floor (7), rolling back if needed.
 
 Also provides the Lagrangian frontier (complementary diagnostic) and the
-adverse correlation stress / robust-fusion procedure (step 4, sec. 6.3).
+adverse correlation stress / robust-fusion procedure (step 4, sec. 7.3).
 """
 
 from __future__ import annotations
@@ -89,7 +89,7 @@ def _greedy(
     mu: float = 0.0,
 ) -> GreedyResult:
     """Shared engine. With ``budget`` set, runs the constrained algorithm of
-    sec. 6.3; with ``budget=None`` and ``mu > 0``, runs the Lagrangian
+    sec. 7.3; with ``budget=None`` and ``mu > 0``, runs the Lagrangian
     relaxation min AVA + mu TE^2 (complementary), merging while gain - mu*cost > 0.
     """
     M, K = model.bundle.M, model.bundle.K
@@ -155,7 +155,7 @@ def greedy_netting(
     alpha: float,
     weighting: Weighting = "pivot",
 ) -> GreedyResult:
-    """Constrained greedy of sec. 6.3, including the floor roll-back (step 3)."""
+    """Constrained greedy of sec. 7.3, including the floor roll-back (step 3)."""
     result = _greedy(model, weighting, alpha, budget=model.budget(alpha))
     # Step 3: conservatism floor (7). Roll merges back from the end until met.
     rolled = 0
@@ -208,7 +208,7 @@ def lagrangian_frontier(
 
 def stress_bundle(bundle: MarketDataBundle, delta: float) -> MarketDataBundle:
     """Adverse correlation stress rho -> max(rho - delta, -1) on off-diagonal
-    terms (algorithm step 4, sec. 6.3): the stress must *reduce* intra-set
+    terms (algorithm step 4, sec. 7.3): the stress must *reduce* intra-set
     correlation, i.e. work against the netting."""
 
     def stress(rho: Optional[np.ndarray]) -> Optional[np.ndarray]:

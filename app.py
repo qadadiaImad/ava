@@ -117,7 +117,7 @@ def cached_robust(bundle_json: str, alpha: float, kappa: float, weighting: str, 
 
 @st.cache_resource(show_spinner=False)
 def cached_dendrogram(bundle_json: str):
-    """Run 1 (sec. 6.5) — depends only on s and rho, never on the book."""
+    """Run 1 (sec. 7.5) — depends only on s and rho, never on the book."""
     return build_dendrogram(MarketDataBundle.from_json(bundle_json))
 
 
@@ -328,7 +328,7 @@ form with usual matrix products and a final sum reduction (Property 1),
         st.markdown(
             """
 Admissible partitions are restricted to **contiguous rectangles**
-$\\mathcal N_r = T_r\\times S_r$ on the node grid (sec. 6.3) — interpretable and
+$\\mathcal N_r = T_r\\times S_r$ on the node grid (sec. 7.3) — interpretable and
 documentable under art. 9(5). **Beware the absolute-strike grid** (sec. 8): fixed
 strikes drift in moneyness with spot, inflating strike-axis correlations and
 **over-justifying netting** — a non-conservative bias. Estimate $s,\\rho$ in moneyness
@@ -361,7 +361,7 @@ add-up across sets) AVA are
         st.markdown("### 6 · Optimal netting")
         st.latex(
             r"\mathcal P^{\star}=\arg\min_{\mathcal P}\;\kappa\sum_{r}\Big|\sum_{(a,b)\in\mathcal G_r}\tilde N_{ab}\Big|\,\tilde s_r"
-            r"\quad\text{s.c. } \mathrm{TE}^2(\mathcal P)\le(1-\alpha)\operatorname{Var}(\Delta\Pi) \text{ and } (7) \tag{9}"
+            r"\quad\text{s.c. } \mathrm{TE}^2(\mathcal P)\le(1-\alpha)\operatorname{Var}(\Delta\Pi) \text{ and } (7) \tag{10}"
         )
         st.markdown(
             "Combinatorial (Bell numbers), NP-hard → greedy controlled construction. "
@@ -385,36 +385,45 @@ pointless: optimal netting targets opposite-sign, strongly correlated sets.
     st.divider()
     c3, c4 = st.columns(2)
     with c3:
-        st.markdown("### Spectral floor — complementary diagnostic")
+        st.markdown("### 6.1 · The spectral diagnostic — Théorème 3")
         st.latex(
-            r"\mathrm{TE}^2(\mathcal P)\;\ge\;\sum_{\ell>L}\lambda_\ell\,\langle N\!\circ\! s,\,u_\ell\rangle^2"
+            r"\Sigma=\sum_\ell \lambda_\ell u_\ell u_\ell^{\top},\qquad"
+            r"\operatorname{Var}(\Delta\Pi)=\sum_\ell c_\ell^2\lambda_\ell,\quad c_\ell=\langle\nu,u_\ell\rangle"
         )
         st.markdown(
             """
-Working in whitened coordinates ($W=N\\circ s$), the per-axis eigendecompositions of
-$\\rho^{\\text{mat}}$ and $\\rho^{\\text{strike}}$ ($M\\times M$ and $K\\times K$ ordinary
-problems — no tensor product) decompose $\\operatorname{Var}(\\Delta\\Pi)$ exactly over
-2-D modes $u_a u_b^{\\top}$. For any representation on $L$ representative shocks the
-residual is bounded below by the spectral tail: the decay speed dictates the
-**minimal number of netting sets** $K^\\star(\\alpha)$. On a vol surface, 2–3 factors
-(level, term slope, smile) typically explain >90% of variance — $K^\\star$ is small
-*unless the book loads precisely on residual modes* (calendar butterflies, wings).
-PCA gives the diagnostic, **not** the solution: eigenvectors are not interpretable
-partitions, hence the constrained greedy algorithm.
+The factors $\\xi_\\ell=u_\\ell^{\\top}\\Delta\\sigma$ are decorrelated with variances
+$\\lambda_\\ell$ (Prop. 6); the map $\\{c_\\ell^2\\lambda_\\ell\\}$ (Prop. 7) is the **risk
+map** of the book. **Théorème 3 (spectral floor)**: for any scheme whose representative
+shocks live in $\\mathrm{Vect}(u_1,\\dots,u_L)$ — the realistic description of coarse
+schemes with smooth weights — $\\mathrm{TE}^2\\ge\\sum_{\\ell>L}c_\\ell^2\\lambda_\\ell$: the
+tail variance of the book is incompressible. (The hypothesis is necessary: with $w=\\nu$
+a single set replicates $\\Delta\\Pi$ exactly — Remarque 5.) **Four usages** (6.1.4):
+U1 the inertia ratio $\\tau_L$ — compressibility of the uncertainty; U2 the risk map —
+*why* a test fails and where to refine; U3 **spectral cleaning** of a noisy
+$\\hat\\Sigma$ — flatten the eigenvalue tail to its mean, with the conservatism guard;
+U4 stability of the dominant subspaces across estimation windows. **The limit**: a
+factor is *not* a netting set — dense signed weights are no valuation exposure; the
+spectrum measures, the partition nets.
 
-### Hierarchical netting (complementary)
-**Stage 1 (smile, fixed maturity)**: collapse strikes onto the tranche level vega with
-the ATM shock; the residual is exactly the **smile-shape exposure**. The local basis
-$\\{1,(k-k_{\\text{ATM}}),(k-k_{\\text{ATM}})^2\\}$ separates *level* (nettable),
-*risk-reversal* and *butterfly* — the per-tranche test fails precisely when the book
-carries net RR/fly, whose consensus uncertainty is wider than ATM: they stay in add-up.
-**Stage 2 (term structure)**: net surviving level vegas along maturities with
-$\\rho^{\\text{mat}}$. The global test is controlled by the triangle inequality in
-$L^2$: allocate the budget $(1-\\alpha)\\mathrm{Var}(\\Delta\\Pi)$ across stages.
+### 6.2 · Smile decomposition — Théorème 4
+Under the **two-mode deformation model** (Déf. 5, eq. 9),
+$\\Delta\\sigma_{a,j}=\\Delta\\sigma_{a,\\text{ATM}}+(x_j{-}x_0)\\Delta S_a+(x_j{-}x_0)^2\\Delta C_a+\\varepsilon_{a,j}$
+— empirical, testable by regressing daily strike moves on ATM/slope/curvature — the
+residual of collapsing tranche $a$ onto its ATM pivot is **exactly**
+$R_a=\\mathrm{RR}_a\\,\\Delta S_a+\\mathrm{FLY}_a\\,\\Delta C_a+\\sum_j\\nu_j\\varepsilon_{a,j}$
+(Théorème 4): the **net level $m_a$ nets perfectly whatever its size**, and the
+go/no-go is closed-form,
+$\\operatorname{Var}(R_a)=\\mathrm{RR}_a^2\\operatorname{Var}\\Delta S+\\mathrm{FLY}_a^2\\operatorname{Var}\\Delta C+2\\,\\mathrm{RR}_a\\mathrm{FLY}_a\\operatorname{Cov}+\\sigma_\\varepsilon^2\\sum_j\\nu_j^2$
+— not "insufficient correlation" but "the book carries this much net RR on this
+tranche" (S1). When the collapse fails, the refinement keeps the netted level and
+carves $\\mathrm{RR}_a$, $\\mathrm{FLY}_a$ out in **add-up** with their own consensus
+uncertainties (S2): only the genuinely unjustified netting is given up. RR/FLY are the
+book's coordinates in the standard smile-strategy basis (Remarque 6).
             """
         )
     with c4:
-        st.markdown("### 6.3 · Greedy agglomerative algorithm under variance budget")
+        st.markdown("### 7.3 · Greedy agglomerative algorithm under variance budget")
         st.markdown(
             """
 With budget $B=(1-\\alpha)\\operatorname{Var}(\\Delta\\Pi)$:
@@ -429,12 +438,12 @@ With budget $B=(1-\\alpha)\\operatorname{Var}(\\Delta\\Pi)$:
    stress** $\\rho\\to\\max(\\rho-\\delta,-1)$, $\\delta\\sim0.1\\!-\\!0.2$; retain only fusions
    robust across regimes — this is what makes the scheme defendable in model review.
 
-**Lagrangian variant (complementary)**: relax (9) into $\\min_{\\mathcal P}\\mathrm{AVA}(\\mathcal P)+\\mu\\,\\mathrm{TE}^2(\\mathcal P)$;
+**Lagrangian variant (complementary)**: relax (10) into $\\min_{\\mathcal P}\\mathrm{AVA}(\\mathcal P)+\\mu\\,\\mathrm{TE}^2(\\mathcal P)$;
 $\\mu\\ge0$ is the **marginal price of destroyed variance**. Sweeping $\\mu$ traces the
 AVA/fidelity efficient frontier; the retained point is the intersection with
 $\\mathrm{TE}^2=B$ — evidence that the scheme is not an arbitrary point.
 
-### 6.4 · Shock families and stability
+### 7.4 · Shock families and stability
 One formalism, several covariances: $\\Sigma^{\\text{totem}}$ (AVA level + official
 test), $\\Sigma^{\\text{bid-ask}}$ (unwind-cost level), $\\Sigma^{\\text{daily}}$ (daily
 surface moves restricted to the pillars, Prop. 5 — **not** a prudential level, but the
@@ -443,11 +452,11 @@ densest $\\rho$ estimator and the **stability test**: replay the variance test o
 fails a regime is unstable and undone). Regulatory asymmetry: refusing a valid fusion
 is allowed, keeping an invalidated one is not.
 
-### 6.5 · Decoupled architecture — structure ⟂ level
+### 7.5 · Decoupled architecture — structure ⟂ level
 **Run 1 (structure, portfolio-free)**: hierarchical clustering of the nodes on the
 **base risk** $d_{ij}=\\sqrt{s_i^2+s_j^2-2\\rho_{ij}s_is_j}$ (the cost of Th. 2 (i) is
 $\\nu_j^2 d_{ij}^2$) → a **dendrogram**; a scheme is a cut at height $\\varepsilon$.
-**Propriété 6**: $d_{j,\\text{pivot}}\\le\\varepsilon s_j$ per node implies, for *any*
+**Propriété 8**: $d_{j,\\text{pivot}}\\le\\varepsilon s_j$ per node implies, for *any*
 book, $\\mathrm{TE}\\le\\varepsilon\\sum_j|\\nu_j|s_j=\\varepsilon\\,\\mathrm{AVA}_{\\text{brut}}/\\kappa$.
 **Run 2 (level)**: evaluate $\\mathrm{AVA}=\\kappa\\sum_r|m_r|\\tilde s_r$ on the cut with
 the day's Totem $s$ — the only remaining freedom is the scalar cut height. The
@@ -463,7 +472,7 @@ flag; here the structure is slow and justified, the level is fast and per-book.
   (cointegration inflates level correlations and over-justifies netting). When the
   Totem history is short, the **daily variations of the system surface restricted to
   the pillars (Prop. 5)** give a denser estimator — retain the **less netting-favourable**
-  of the two, and cross with the stability test (sec. 6.4). Shrinkage recommended in
+  of the two, and cross with the stability test (sec. 7.4). Shrinkage recommended in
   all cases.
 - **Regulatory asymmetry**: the test protects against *under*-estimation — in doubt,
   the correlation stress must be **adverse to netting**.
@@ -683,7 +692,7 @@ with tab_passage:
 # OPTIMAL NETTING
 # =========================================================================== #
 with tab_optimal:
-    st.markdown("### Greedy agglomerative optimisation under variance budget (sec. 6.3)")
+    st.markdown("### Greedy agglomerative optimisation under variance budget (sec. 7.3)")
     opt_col1, opt_col2 = st.columns([1, 1])
     with opt_col1:
         robust_mode = st.toggle(
@@ -735,7 +744,7 @@ with tab_optimal:
         st.plotly_chart(
             charts.partition_figure(
                 scheme.labels, bundle.vega, bundle.tenors, bundle.strikes,
-                title="Retained netting sets (rectangular paving, sec. 6.3)",
+                title="Retained netting sets (rectangular paving, sec. 7.3)",
                 set_stats=ev.set_stats,
             ),
             width="stretch",
@@ -818,16 +827,16 @@ with tab_optimal:
         )
 
 # =========================================================================== #
-# STRUCTURE & STABILITY (sec. 6.4 / 6.5)
+# STRUCTURE & STABILITY (sec. 7.4 / 7.5)
 # =========================================================================== #
 with tab_structure:
     st.markdown(
-        "### Decoupled architecture — the structure by the variance, the level by the AVA (sec. 6.5)\n"
+        "### Decoupled architecture — the structure by the variance, the level by the AVA (sec. 7.5)\n"
         "**Run 1** clusters the test nodes hierarchically on the **base risk** "
         "d_ij = √(s_i² + s_j² − 2ρ_ij s_i s_j) — Théorème 2 (i): fusing j onto pivot i "
         "costs TE² = ν_j²·d_ij². The dendrogram depends only on Σ, **never on the book**: "
         "the structure is stable from portfolio to portfolio. A netting scheme is a "
-        "**cut** of the tree at height ε; Propriété 6 guarantees, for *any* book, "
+        "**cut** of the tree at height ε; Propriété 8 guarantees, for *any* book, "
         "TE ≤ ε·Σ|ν_j|s_j = ε·AVA_brut/κ. **Run 2** evaluates the AVA on the cut with "
         "the day's Totem s — no re-optimisation, plus the mandatory per-book check "
         "TE²/Var(ΔΠ) (the cut is lowered if it fails)."
@@ -841,7 +850,7 @@ with tab_structure:
     else:
         h_max, h_default = 1.0, 0.5
     eps_cut = st.slider(
-        "ε — cut height (Prop. 6: per-node base risk ≤ ε · own uncertainty)",
+        "ε — cut height (Prop. 8: per-node base risk ≤ ε · own uncertainty)",
         0.0, float(np.ceil(h_max * 1.05 * 100) / 100), h_default, 0.01,
     )
     with st.spinner("Run 2 — evaluating the day's book on the cut…"):
@@ -855,7 +864,7 @@ with tab_structure:
     d2.metric("ε realised", f"{dres.epsilon_realised:.3f}",
               delta=f"{dres.lowered} merge(s) undone by the book check" if dres.lowered else "cut as requested",
               delta_color="off")
-    d3.metric("Prop. 6 bound on TE", f"{dres.te_bound:,.0f}",
+    d3.metric("Prop. 8 bound on TE", f"{dres.te_bound:,.0f}",
               delta=f"actual TE = {np.sqrt(max(ev_d.te2, 0)):,.0f}", delta_color="off")
     d4.metric("Variance score R²", f"{ev_d.r2:.2%}",
               delta=f"{(ev_d.r2 - alpha) * 100:+.2f} pts vs α")
@@ -880,12 +889,12 @@ with tab_structure:
         "Compare with the joint greedy (Optimal Netting tab): the decoupled scheme may "
         "leave some AVA on the table, but it does not move with the book — re-optimising "
         "the partition every date with the day's vegas is itself a red flag in validation "
-        "(sec. 6.5)."
+        "(sec. 7.5)."
     )
 
     st.divider()
     st.markdown(
-        "#### Stability across shock families (sec. 6.4)\n"
+        "#### Stability across shock families (sec. 7.4)\n"
         "Same partition, same transport, same formulas — only Σ changes. The variance "
         "test of the retained cut is replayed under alternative covariances; any fusion "
         "failing a regime is unstable and undone (one may refuse a valid fusion, never "
@@ -1066,14 +1075,22 @@ with tab_scenario:
 # SPECTRAL & SMILE
 # =========================================================================== #
 with tab_spectral:
+    st.markdown(
+        "### The spectral diagnostic (sec. 6.1) — the spectrum measures, the partition nets\n"
+        "Σ at the nodes is diagonalised into decorrelated factors ξ_ℓ = u_ℓᵀΔσ "
+        "(Prop. 6); the book's variance decomposes exactly as Σ c_ℓ²λ_ℓ with "
+        "c_ℓ = ⟨ν, u_ℓ⟩ (Prop. 7). Théorème 3: schemes whose representative shocks "
+        "live in the span of the first L factors cannot beat the tail floor."
+    )
     diag = spectral_diagnostic(model, alpha=float(alpha))
-    s1, s2, s3 = st.columns(3)
-    s1.metric("K*(α) — spectral floor on #sets (diagnostic)", f"{diag.k_star}")
-    s2.metric("Top-3 modes explain", f"{diag.explained_ratio(3):.1%}", delta="of vega-weighted variance")
-    s3.metric("λ₁ / λ₂", f"{diag.eigenvalues[0] / max(diag.eigenvalues[1], 1e-12):.1f}×")
+    s1, s2, s3, s4 = st.columns(4)
+    s1.metric("K*(α) — spectral floor on #sets (Théorème 3)", f"{diag.k_star}")
+    s2.metric("Top-3 modes explain", f"{diag.explained_ratio(3):.1%}", delta="of the book's variance (Prop. 7)")
+    s3.metric("Inertia τ₃ — U1", f"{diag.inertia[3]:.1%}", delta="of tr(Σ) = Σs² (compressibility)")
+    s4.metric("λ₁ / λ₂", f"{diag.eigenvalues[0] / max(diag.eigenvalues[1], 1e-12):.1f}×")
     st.plotly_chart(charts.spectral_figure(diag), width="stretch")
 
-    st.markdown("#### Leading 2-D modes u_a u_bᵀ on the grid — the *non-nettable directions* live in the tail")
+    st.markdown("#### Leading eigendirections u_ℓ of Σ on the grid — the *non-nettable directions* live in the tail")
     mode_cols = st.columns(3)
     names = ["mode 1 (level)", "mode 2 (term/skew)", "mode 3 (smile)"]
     for l, col in enumerate(mode_cols):
@@ -1092,7 +1109,7 @@ with tab_spectral:
     st.caption(
         "Tranches whose R² falls below α carry material net risk-reversal / butterfly: "
         "their smile-shape exposure must stay in add-up (stage 1 of the hierarchical "
-        "netting, complementary diagnostic); level vegas of passing tranches proceed to stage-2 "
+        "netting, sec. 6.2 / Théorème 4); level vegas of passing tranches proceed to stage-2 "
         "term-structure netting under ρ_mat."
     )
 

@@ -1,8 +1,8 @@
-"""Decoupled architecture (sec. 6.5): structure by variance, level by AVA.
+"""Decoupled architecture (sec. 7.5): structure by variance, level by AVA.
 
-The joint greedy of sec. 6.3 mixes an objective (the AVA gain, which
+The joint greedy of sec. 7.3 mixes an objective (the AVA gain, which
 needs kappa, the Totem s and the day's book) with a constraint (the
-variance cost, which needs only Sigma and the vegas). Sec. 6.5 separates
+variance cost, which needs only Sigma and the vegas). Sec. 7.5 separates
 them into two runs:
 
 Run 1 — the structure, portfolio-free. Hierarchical agglomerative
@@ -13,7 +13,7 @@ clustering of the test nodes on the *base-risk distance*
 
 exactly the quantity of Theoreme 2 (i): fusing j onto pivot i costs
 TE^2 = nu_j^2 d_ij^2. Merging by increasing base risk yields a
-*dendrogram*; a netting scheme is a *cut* of that tree. Propriete 6
+*dendrogram*; a netting scheme is a *cut* of that tree. Propriete 8
 (portfolio-free criterion): if every node j of a set satisfies
 d_{j,pivot} <= eps * s_j, then for ANY book
 TE <= eps * sum |nu_j| s_j = eps * AVA_brut / kappa.
@@ -24,14 +24,14 @@ day's Totem s — no combinatorial re-optimisation. The mandatory per-book
 check is the single closed-form ratio TE^2 / Var(DeltaPi) (Def. 3); when
 it fails, the cut is lowered (finer sets) for that book.
 
-Sec. 6.4 — shock families and stability: the same partition is replayed
+Sec. 7.4 — shock families and stability: the same partition is replayed
 under alternative covariances (daily variations restricted to the
 pillars, stressed correlations); fusions failing under any regime are
 unstable and undone — realised here by lowering the cut until the scheme
 passes under every covariance.
 
 Merges are constrained to rectangular contiguous sets on the node grid
-(interpretability, sec. 6.3). All variances use ordinary matrix products
+(interpretability, sec. 7.3). All variances use ordinary matrix products
 and reductions (Property 1) — no Kronecker / tensor product.
 """
 
@@ -62,7 +62,7 @@ __all__ = [
 
 
 # --------------------------------------------------------------------------- #
-# Base-risk distance (Th. 2 (i) / sec. 6.5)
+# Base-risk distance (Th. 2 (i) / sec. 7.5)
 # --------------------------------------------------------------------------- #
 def base_risk_distance(bundle: MarketDataBundle) -> np.ndarray:
     """Pairwise base risk d_ij between test nodes, as an (n, n) matrix on
@@ -90,7 +90,7 @@ def base_risk_distance(bundle: MarketDataBundle) -> np.ndarray:
 
 
 def _set_epsilon(cells: list[tuple[int, int]], dist: np.ndarray, s: np.ndarray, K: int):
-    """Best pivot of a set under the Propriete 6 criterion: the cell
+    """Best pivot of a set under the Propriete 8 criterion: the cell
     minimising max_j d_{j,pivot} / s_j. Returns (epsilon, pivot_cell)."""
     best_eps, best_pivot = np.inf, cells[0]
     for p in cells:
@@ -115,7 +115,7 @@ class ClusterMerge:
     rect_a: Rect
     rect_b: Rect
     merged: Rect
-    height: float          # epsilon of the merged set (Prop. 6 criterion)
+    height: float          # epsilon of the merged set (Prop. 8 criterion)
 
 
 @dataclass(frozen=True)
@@ -151,11 +151,11 @@ class Dendrogram:
 
 
 def build_dendrogram(bundle: MarketDataBundle) -> Dendrogram:
-    """Run 1 of sec. 6.5 — needs only Sigma (s, rho), never the book.
+    """Run 1 of sec. 7.5 — needs only Sigma (s, rho), never the book.
 
     Agglomerative clustering constrained to rectangular contiguous sets:
     at each step, merge the adjacent pair whose union has the smallest
-    Propriete-6 epsilon (max_j d_{j,pivot}/s_j minimised over the pivot).
+    Propriete-8 epsilon (max_j d_{j,pivot}/s_j minimised over the pivot).
     """
     M, K = bundle.M, bundle.K
     dist = base_risk_distance(bundle)
@@ -189,7 +189,7 @@ def build_dendrogram(bundle: MarketDataBundle) -> Dendrogram:
 
 
 def cut_pivots(bundle: MarketDataBundle, labels: np.ndarray) -> dict:
-    """Structure pivots of a cut (portfolio-free, Prop. 6 criterion).
+    """Structure pivots of a cut (portfolio-free, Prop. 8 criterion).
 
     Returns {set_id: {"pivot": (m, k), "epsilon": eps}} where eps is the
     realised max_j d_{j,pivot}/s_j of the set."""
@@ -213,7 +213,7 @@ def evaluate_cut(
     kappa: float,
     pivots: Optional[dict] = None,
 ) -> SchemeEvaluation:
-    """Run 2 of sec. 6.5: AVA and the variance test of a structure cut.
+    """Run 2 of sec. 7.5: AVA and the variance test of a structure cut.
 
     The representative shock of each set is its *structure* pivot
     (portfolio-free, from Run 1) — not a book-dependent choice, so the
@@ -275,7 +275,7 @@ def evaluate_cut(
 
 @dataclass(frozen=True)
 class DecoupledResult:
-    """Output of the two-run architecture of sec. 6.5."""
+    """Output of the two-run architecture of sec. 7.5."""
 
     dendrogram: Dendrogram
     epsilon: float                 # requested cut height
@@ -284,7 +284,7 @@ class DecoupledResult:
     pivots: dict
     evaluation: SchemeEvaluation
     epsilon_realised: float        # max set epsilon of the cut
-    te_bound: float                # Prop. 6: eps_realised * sum |nu| s
+    te_bound: float                # Prop. 8: eps_realised * sum |nu| s
     lowered: int                   # merges undone by the per-book check
 
     @property
@@ -299,7 +299,7 @@ def decoupled_netting(
     epsilon: float,
     dendrogram: Optional[Dendrogram] = None,
 ) -> DecoupledResult:
-    """Sec. 6.5 end to end: cut the (portfolio-free) dendrogram at
+    """Sec. 7.5 end to end: cut the (portfolio-free) dendrogram at
     ``epsilon``, evaluate the day's book on the cut, and apply the
     mandatory per-book check — if the variance test (6) or the floor (7)
     fails, lower the cut (undo merges) until both pass."""
@@ -330,7 +330,7 @@ def decoupled_netting(
 
 
 # --------------------------------------------------------------------------- #
-# Sec. 6.4 — stability across shock families
+# Sec. 7.4 — stability across shock families
 # --------------------------------------------------------------------------- #
 def stability_report(
     labels: np.ndarray,
@@ -340,7 +340,7 @@ def stability_report(
     kappa: float,
 ) -> list[dict]:
     """Replay the variance test of the SAME partition under alternative
-    covariances (sec. 6.4: daily-variation windows restricted to the
+    covariances (sec. 7.4: daily-variation windows restricted to the
     pillars via Propriete 5, stressed correlations, bid-ask...). Only the
     covariance changes — same transport matrices, same TE formulas.
 
@@ -371,7 +371,7 @@ def stable_cut(
     epsilon: float,
     dendrogram: Optional[Dendrogram] = None,
 ) -> dict:
-    """Sec. 6.4 protocol on the dendrogram: keep the deepest cut at or
+    """Sec. 7.4 protocol on the dendrogram: keep the deepest cut at or
     below ``epsilon`` whose partition passes the variance test and the
     floor under the base covariance AND every alternative regime.
     Fusions failing any regime are unstable and undone (the regulatory
@@ -385,7 +385,7 @@ def stable_cut(
         report = stability_report(labels, bundle, alternatives, alpha, kappa)
         # variance test must hold in every regime; the conservatism floor
         # is a prudential-level check, meaningful under the base covariance
-        # only (sec. 6.4: Sigma_daily is not a prudential uncertainty level)
+        # only (sec. 7.4: Sigma_daily is not a prudential uncertainty level)
         ok = all(r["passes_variance"] for r in report) and report[0]["passes_floor"]
         if ok or n == 0:
             break
