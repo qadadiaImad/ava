@@ -19,6 +19,7 @@ import streamlit as st
 
 from ebanetting import (
     KAPPA_90,
+    SmileModel,
     MarketDataBundle,
     NettingScheme,
     SyntheticDataSource,
@@ -32,8 +33,13 @@ from ebanetting import (
     preset_labels,
     project_bundle,
     robust_netting,
+    cut_tranche,
+    evaluate_book,
+    generated_correlation,
+    model_distance,
     score_scenario,
     smile_decomposition,
+    tranche_dendrogram,
     spectral_diagnostic,
     stable_cut,
     stress_bundle,
@@ -241,11 +247,11 @@ bundle_json = bundle.to_json(sort_keys=True)
 # --------------------------------------------------------------------------- #
 # Tabs
 # --------------------------------------------------------------------------- #
-(tab_theory, tab_data, tab_passage, tab_optimal, tab_structure, tab_scenario,
- tab_spectral, tab_audit) = st.tabs(
+(tab_theory, tab_data, tab_passage, tab_optimal, tab_structure, tab_twolayer,
+ tab_scenario, tab_spectral, tab_audit) = st.tabs(
     ["🏛️ Theory", "📊 Market Data", "🔁 Passage", "🧠 Optimal Netting",
-     "🌳 Structure & Stability", "🎯 Scenario Lab", "🔬 Spectral & Smile",
-     "📋 Audit & Export"]
+     "🌳 Structure & Stability", "🧬 Two-Layer", "🎯 Scenario Lab",
+     "🔬 Spectral & Smile", "📋 Audit & Export"]
 )
 
 # =========================================================================== #
@@ -951,6 +957,128 @@ with tab_structure:
             "regimes": stab["report"],
             "labels": stab["labels"].tolist(),
         }
+
+# =========================================================================== #
+# TWO-LAYER (companion methodology note)
+# =========================================================================== #
+with tab_twolayer:
+    st.markdown(
+        "### The two-layer methodology — underlying (structure) × book (evaluation)\n"
+        "**Layer 1, per underlying (no book):** the smile of a tranche moves through "
+        "three modes — level, slope ΔS, curvature ΔC — plus an idiosyncratic noise "
+        "(Déf. 1). The model generates the disagreement between any two points "
+        "(Théorème 1) and the correlation curve ρ(x) = s₀/sₓ (Prop. 2); the dendrogram "
+        "of contiguous strike groups is the **map of possible fusions**. "
+        "**Layer 2, per book:** the exact residual of netting a group on its pivot is "
+        "carried by the *signed* aggregates RR_p and FLY_p (Théorème 2) — the net level "
+        "always nets. The barycenter pivot x_p = RR₀/m kills RR exactly (sec. 6.3), and "
+        "the decisions are never all-or-nothing: collapse / extraction / scission "
+        "(N2–N4). The exact computation can **authorise what the layer-1 majorant "
+        "Σ|ν_j|d_jp wrongly refused** — it stops double-counting what cancels."
+    )
+
+    tl1, tl2 = st.columns([1, 2.2])
+    with tl1:
+        tranche_idx = st.selectbox(
+            "Tranche (one maturity line of the vega matrix)",
+            list(range(bundle.M)), format_func=lambda i: bundle.tenors[i],
+        )
+        st.markdown("**Layer-1 model** (A1 — from daily regressions; editable):")
+        s0_tl = st.number_input("s₀ — level shock sd", value=1.0, min_value=0.0, step=0.1)
+        ss_tl = st.number_input("σ_S — slope (skew) shock sd", value=2.0, min_value=0.0, step=0.1)
+        sc_tl = st.number_input("σ_C — curvature shock sd", value=10.0, min_value=0.0, step=0.5)
+        se_tl = st.number_input("σ_ε — idiosyncratic sd", value=0.1, min_value=0.0, step=0.01)
+        smodel = SmileModel(s0=float(s0_tl), sigma_s=float(ss_tl),
+                            sigma_c=float(sc_tl), sigma_eps=float(se_tl))
+        x_tl = np.asarray(bundle.strikes, dtype=float) - 1.0
+        nu_tl = bundle.vega[int(tranche_idx)]
+        s_tl = smodel.point_uncertainty(x_tl)
+        dist_tl = model_distance(x_tl, smodel)
+        merges_tl = tranche_dendrogram(x_tl, dist_tl, s_tl)
+        h_def = float(np.median([m.height for m in merges_tl])) if merges_tl else 0.5
+        h_top = max((m.height for m in merges_tl), default=1.0)
+        eps_tl = st.slider("cut height (disagreement d)", 0.0,
+                           float(np.ceil(h_top * 105) / 100), h_def, 0.01)
+    with tl2:
+        cda, cdb = st.columns(2)
+        with cda:
+            st.plotly_chart(
+                charts.heatmap(
+                    dist_tl, bundle.strikes, bundle.strikes,
+                    "Disagreement matrix D = (d_ij) — Théorème 1, no book",
+                    colorscale="Plasma", colorbar_title="d", height=360,
+                ),
+                width="stretch",
+            )
+        with cdb:
+            x_dense = np.linspace(x_tl.min(), x_tl.max(), 200)
+            st.plotly_chart(
+                charts.correlation_curve_figure(
+                    x_dense, generated_correlation(x_dense, smodel),
+                    x_tl, generated_correlation(x_tl, smodel), height=360,
+                ),
+                width="stretch",
+            )
+        st.plotly_chart(
+            charts.dendrogram_figure(
+                merges_tl, float(eps_tl),
+                sum(1 for m in merges_tl if m.height <= eps_tl), height=330,
+            ),
+            width="stretch",
+        )
+
+    groups_tl = cut_tranche(merges_tl, bundle.K, float(eps_tl))
+    res_tl = evaluate_book(groups_tl, nu_tl, x_tl, smodel,
+                           alpha=float(alpha), kappa=float(kappa))
+    st.markdown(f"#### Layer 2 — book decisions on tranche **{bundle.tenors[int(tranche_idx)]}** (N1–N4)")
+    t1, t2, t3, t4, t5 = st.columns(5)
+    t1.metric("Groups (layer-1 cut)", f"{len(groups_tl)}",
+              delta=f"from {bundle.K} strikes")
+    t2.metric("TE² exact vs majorant²",
+              f"{res_tl.te2:,.0f}",
+              delta=f"majorant {res_tl.te2_majorant:,.0f}", delta_color="off")
+    t3.metric("Budget (1−α)·Var(ΔΠ)", f"{res_tl.budget:,.0f}",
+              delta="PASS" if res_tl.passes_variance else "FAIL", delta_color="off")
+    t4.metric("AVA (tranche)", eur(res_tl.ava), delta=f"-{res_tl.ava_saving_pct:.0%} vs add-up")
+    t5.markdown(
+        f"**Variance test** {verdict_badge(res_tl.passes_variance)}<br><br>"
+        f"**Floor** {verdict_badge(res_tl.passes_floor)}",
+        unsafe_allow_html=True,
+    )
+    if res_tl.te2_majorant > res_tl.budget >= res_tl.te2:
+        st.success(
+            "The layer-1 majorant alone would have **refused** this netting "
+            f"({res_tl.te2_majorant:,.0f} > {res_tl.budget:,.0f}); the exact signed "
+            "computation authorises it — the compensations between groups are real "
+            "(sec. 5: the correlation measures the disagreement, the book decides "
+            "whether it hurts)."
+        )
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "group (strikes)": ", ".join(str(bundle.strikes[j]) for j in d.members),
+                    "pivot": bundle.strikes[d.pivot_index],
+                    "m (net level)": round(d.m, 1),
+                    "RR_p": round(d.rr, 3),
+                    "FLY_p": round(d.fly, 3),
+                    "Var(R) exact (Th. 2)": round(d.var_exact, 2),
+                    "majorant Σ|ν|d": round(d.majorant_sd, 2),
+                    "decision": d.decision,
+                    "AVA": round(d.ava, 1),
+                }
+                for d in res_tl.decisions
+            ]
+        ),
+        width="stretch",
+        hide_index=True,
+    )
+    st.caption(
+        "Pivots are the quoted nodes nearest the vega barycenter RR₀/m — the choice "
+        "that annihilates the slope term (sec. 6.3). Extraction keeps the net level "
+        "netted and provisions RR/FLY in add-up with their own uncertainties; only the "
+        "genuinely unjustified netting is given up."
+    )
 
 # =========================================================================== #
 # SCENARIO LAB

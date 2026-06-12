@@ -48,6 +48,12 @@ correlation stress, and the full art. 9(5) audit trail.
 | Decoupling hypothesis ρ2D = ρ_mat·ρ_strike, entrywise (annex §8) | per-axis `corr_mat` / `corr_strike` inputs |
 | Art. 9(5) evidence pack (§9) | `ebanetting/reporting.py` |
 | Lagrangian efficient frontier (complementary) | `lagrangian_frontier()` |
+| **Two-layer companion note** — smile model, Th. 1 disagreement d_ij | `ebanetting/twolayer.py` — `SmileModel`, `model_distance()` |
+| Generated correlation ρ(x) = s₀/sₓ (Prop. 2) | `generated_correlation()` |
+| Tranche dendrogram, pivot-linkage, most-liquid pivots (A3) | `tranche_dendrogram()`, `cut_tranche()` |
+| Exact group residual, general pivot + idio floor (Th. 2) | `group_residual_variance()` vs `majorant_residual_sd()` |
+| Barycenter pivot x_p = RR₀/m kills RR exactly (sec. 6.3) | `barycenter_pivot()` |
+| Decisions N1–N4: collapse / extraction / scission (sec. 6.4) | `evaluate_book()` — never all-or-nothing |
 
 ## Quick start
 
@@ -76,6 +82,11 @@ python -m pytest tests/ -q
   the grid, AVA waterfall (add-up → netted vs the diversification floor),
   budget-consumption path, Lagrangian efficient frontier, robust mode with
   correlation-stress regimes.
+- **🧬 Two-Layer** — the companion methodology end to end on a tranche: the layer-1
+  deformation model (editable σ_S, σ_C, σ_ε), the disagreement matrix and the generated
+  correlation curve, the dendrogram cut, then the layer-2 book decisions with the exact
+  TE² vs the majorant — including the case where the exact signed computation
+  authorises what layer 1 alone would have refused.
 - **🌳 Structure & Stability** — the decoupled architecture of §7.5: the portfolio-free
   dendrogram on the base risk d_ij (Run 1), the ε cut slider with the Prop. 8 bound and
   the per-book TE²/Var check (Run 2), and the §7.4 stability protocol replaying the
@@ -169,6 +180,7 @@ eba-vega-netting/
 │   ├── model.py            #   ΔΠ, Var, AVA extremes
 │   ├── passage.py          #   step 1: passage (sandwich, Th. 1) + restriction (Prop. 5)
 │   ├── clustering.py       #   sec. 7.5 dendrogram / Prop. 8 / Run 2 + sec. 7.4 stability
+│   ├── twolayer.py         #   companion note: smile model, exact layer-2, N1-N4
 │   ├── netting.py          #   partition operator, variance test, floor, two-node
 │   ├── optimizer.py        #   greedy under budget, frontier, correlation stress
 │   ├── spectral.py         #   sec. 6.1: factors of Σ, Th. 3 floor, cleaning, stability

@@ -63,6 +63,23 @@ from .scenario import (
     tranche_collapse_variance,
     tranche_refinement,
 )
+from .twolayer import (
+    GroupDecision,
+    SmileModel,
+    TrancheMerge,
+    TwoLayerResult,
+    barycenter_pivot,
+    book_variance,
+    cut_tranche,
+    evaluate_book,
+    fit_smile_model,
+    generated_correlation,
+    group_projections,
+    group_residual_variance,
+    majorant_residual_sd,
+    model_distance,
+    tranche_dendrogram,
+)
 from .spectral import (
     SpectralDiagnostic,
     node_covariance,
@@ -71,7 +88,7 @@ from .spectral import (
     subspace_stability,
 )
 
-__version__ = "2.2.0"
+__version__ = "2.3.0"
 
 __all__ = [
     "PassageResult",
@@ -124,4 +141,19 @@ __all__ = [
     "fit_deformation_model",
     "tranche_collapse_variance",
     "tranche_refinement",
+    "GroupDecision",
+    "SmileModel",
+    "TrancheMerge",
+    "TwoLayerResult",
+    "barycenter_pivot",
+    "book_variance",
+    "cut_tranche",
+    "evaluate_book",
+    "fit_smile_model",
+    "generated_correlation",
+    "group_projections",
+    "group_residual_variance",
+    "majorant_residual_sd",
+    "model_distance",
+    "tranche_dendrogram",
 ]

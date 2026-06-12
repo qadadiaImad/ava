@@ -561,3 +561,131 @@ def test_tranche_refinement_is_addup_of_components():
                              s_atm=0.3, s_skew=0.6, s_fly=0.9, kappa=KAPPA_90)
     assert out["ava_total"] == pytest.approx(
         KAPPA_90 * (500.0 * 0.3 + 120.0 * 0.6 + 80.0 * 0.9))
+
+
+# --------------------------------------------------------------------------- #
+# Two-layer methodology (companion note) — worked example and theorems
+# --------------------------------------------------------------------------- #
+@pytest.fixture
+def smile_example():
+    """The companion note's end-to-end example: 5 strikes, layer-1 model
+    s0=1, sigma_S=2, sigma_C=10, sigma_eps=0.1, book (+8,-12,+20,+30,+14)."""
+    from ebanetting import SmileModel
+
+    model = SmileModel(s0=1.0, sigma_s=2.0, sigma_c=10.0, sigma_eps=0.1)
+    x = np.array([0.60, 0.70, 0.90, 1.00, 1.10]) - 1.0
+    nu = np.array([8.0, -12.0, 20.0, 30.0, 14.0])
+    return model, x, nu
+
+
+def test_layer1_matches_worked_example(smile_example):
+    """A1/A2: point uncertainties, disagreement matrix (Th. 1) and the
+    generated correlation (Prop. 2)."""
+    from ebanetting import generated_correlation, model_distance
+
+    model, x, _ = smile_example
+    np.testing.assert_allclose(
+        model.point_uncertainty(x), [2.05, 1.48, 1.03, 1.00, 1.03], atol=0.005)
+    D = model_distance(x, model)
+    np.testing.assert_allclose(D[0], [0.0, 0.74, 1.62, 1.79, 1.81], atol=0.005)
+    np.testing.assert_allclose(D[1, 2:], [0.91, 1.09, 1.14], atol=0.005)
+    # idio floor and symmetric-pair curvature cancellation (Th. 1 readings)
+    assert D.min() == 0.0 and (D[D > 0] ** 2 >= 2 * model.sigma_eps ** 2 - 1e-12).all()
+    rho = generated_correlation(x, model)
+    assert rho[3] == pytest.approx(1.0 / np.sqrt(1.0 + 0.01))  # near-ATM
+    assert np.all(np.diff(rho[:4]) > 0)  # the curvature cliff away from ATM
+
+
+def test_dendrogram_wing_pivot_emerges(smile_example):
+    """A3: the wing merges with the wing (0.74), not with the ATM (1.09) —
+    the wing pivot emerges from the clustering, zones are an output."""
+    from ebanetting import cut_tranche, model_distance, tranche_dendrogram
+
+    model, x, _ = smile_example
+    D = model_distance(x, model)
+    merges = tranche_dendrogram(x, D, model.point_uncertainty(x))
+    heights = [round(m.height, 2) for m in merges]
+    assert heights == [0.26, 0.26, 0.74, 1.09]
+    groups = cut_tranche(merges, 5, epsilon=0.8)
+    assert groups == [(0, 1), (2, 3, 4)]
+
+
+def test_layer2_exact_te_authorises_what_majorant_refuses(smile_example):
+    """B1-B3: the full worked example — exact TE^2 = 107.6 passes the
+    budget 182 while the layer-1 majorant (~224) would have refused."""
+    from ebanetting import (book_variance, cut_tranche, evaluate_book,
+                            model_distance, tranche_dendrogram)
+
+    model, x, nu = smile_example
+    D = model_distance(x, model)
+    groups = cut_tranche(tranche_dendrogram(x, D, model.point_uncertainty(x)), 5, 0.8)
+    assert book_variance(nu, x, model) == pytest.approx(3646.4, abs=0.5)
+    res = evaluate_book(groups, nu, x, model, alpha=0.95, kappa=1.0)
+    by_members = {d.members: d for d in res.decisions}
+    w, c = by_members[(0, 1)], by_members[(2, 3, 4)]
+    assert (w.pivot_index, c.pivot_index) == (1, 3)        # pivots 70 and 100
+    assert (w.m, round(w.rr, 2), round(w.fly, 2)) == (-4.0, -0.8, 0.56)
+    assert (c.m, round(c.rr, 2), round(c.fly, 2)) == (64.0, -0.6, 0.34)
+    assert res.te2 == pytest.approx(107.6, abs=0.1)
+    assert res.te2 <= res.budget and res.passes_variance
+    assert res.te2_majorant > res.budget                   # layer 1 alone refuses
+    assert res.ava == pytest.approx(70.2, abs=0.1)         # note rounds to 69.9
+    assert res.ava_floor == pytest.approx(60.4, abs=0.1)
+    assert res.passes_floor and res.ava < res.ava_brut
+
+
+def test_twin_books_property3(smile_example):
+    """Prop. 3: fly book (+10,+10) and RR book (+10,-10) get the same
+    layer-1 majorant but exact variances of different orders (sigma_eps
+    set to 0 to isolate the slope/curvature asymmetry, as in the note)."""
+    from ebanetting import SmileModel, group_residual_variance, majorant_residual_sd
+
+    model = SmileModel(s0=1.0, sigma_s=2.0, sigma_c=10.0, sigma_eps=0.0)
+    delta = 0.05
+    x3 = np.array([-delta, 0.0, +delta])
+    fly = np.array([10.0, 0.0, 10.0])
+    rr = np.array([10.0, 0.0, -10.0])
+    v_fly = group_residual_variance(fly, x3, 1, model)
+    v_rr = group_residual_variance(rr, x3, 1, model)
+    # same majorant, blind to the signs
+    assert majorant_residual_sd(fly, x3, 1, model) == pytest.approx(
+        majorant_residual_sd(rr, x3, 1, model))
+    # exact: A has no slope risk (~delta^4), B no curvature risk (~delta^2)
+    assert v_fly == pytest.approx((20 * delta ** 2) ** 2 * model.sigma_c ** 2)
+    assert v_rr == pytest.approx((20 * delta) ** 2 * model.sigma_s ** 2)
+    assert v_rr > 10 * v_fly  # orders of magnitude apart for small delta
+
+
+def test_barycenter_pivot_kills_rr(smile_example):
+    """Sec. 6.3: RR_p = RR_0 - m x_p vanishes at x_p = RR_0 / m, and the
+    translation identities hold."""
+    from ebanetting import barycenter_pivot, group_projections
+
+    _, x, nu = smile_example
+    p0 = group_projections(nu, x, 0.0)
+    xp = barycenter_pivot(nu, x)
+    assert xp == pytest.approx(p0["rr"] / p0["m"])
+    pp = group_projections(nu, x, xp)
+    assert pp["rr"] == pytest.approx(0.0, abs=1e-12)
+    assert pp["fly"] == pytest.approx(p0["fly"] - p0["m"] * xp ** 2)
+
+
+def test_fit_smile_model_recovers_parameters():
+    """A1: the cross-sectional regression recovers (s0, sigma_S, sigma_C)
+    and a high R^2 under the true model."""
+    from ebanetting import fit_smile_model
+
+    rng = np.random.default_rng(3)
+    x = np.array([-0.4, -0.3, -0.1, 0.0, 0.1])
+    T = 20000
+    level = rng.normal(0, 1.0, T)
+    dS = rng.normal(0, 2.0, T)
+    dC = rng.normal(0, 10.0, T)
+    eps = rng.normal(0, 0.1, (T, x.size))
+    shocks = level[:, None] + dS[:, None] * x[None, :] + dC[:, None] * x[None, :] ** 2 + eps
+    fit = fit_smile_model(x, shocks)
+    assert fit.s0 == pytest.approx(1.0, rel=0.05)
+    assert fit.sigma_s == pytest.approx(2.0, rel=0.05)
+    assert fit.sigma_c == pytest.approx(10.0, rel=0.05)
+    assert fit.sigma_eps == pytest.approx(0.1, rel=0.1)
+    assert fit.r2 > 0.99
