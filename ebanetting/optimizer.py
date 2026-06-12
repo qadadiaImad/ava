@@ -10,8 +10,8 @@ solved with the greedy agglomerative algorithm of sec. 7.3:
     merges first, while TE^2 stays within B = (1 - alpha) Var(DeltaPi);
     then verify the conservatism floor (7), rolling back if needed.
 
-Also provides the Lagrangian frontier (complementary diagnostic) and the
-adverse correlation stress / robust-fusion procedure (step 4, sec. 7.3).
+Also provides the adverse correlation stress / robust-fusion procedure
+(step 4 of the algorithm, sec. 7.3).
 """
 
 from __future__ import annotations
@@ -30,7 +30,6 @@ __all__ = [
     "GreedyResult",
     "MergeStep",
     "greedy_netting",
-    "lagrangian_frontier",
     "stress_bundle",
     "robust_netting",
 ]
@@ -85,13 +84,9 @@ def _greedy(
     model: UncertaintyModel,
     weighting: Weighting,
     alpha: float,
-    budget: Optional[float],
-    mu: float = 0.0,
+    budget: float,
 ) -> GreedyResult:
-    """Shared engine. With ``budget`` set, runs the constrained algorithm of
-    sec. 7.3; with ``budget=None`` and ``mu > 0``, runs the Lagrangian
-    relaxation min AVA + mu TE^2 (complementary), merging while gain - mu*cost > 0.
-    """
+    """Constrained greedy engine of sec. 7.3."""
     M, K = model.bundle.M, model.bundle.K
     rects: list[Rect] = [(m, m, k, k) for m in range(M) for k in range(K)]
     current = NettingScheme.from_labels(_labels_from_rects(rects, M, K), weighting)
@@ -110,20 +105,14 @@ def _greedy(
                 ev_new = scheme.evaluate(model, alpha)
                 gain = ev.ava - ev_new.ava
                 cost = ev_new.te2 - ev.te2
-                if budget is not None:
-                    if ev_new.te2 > budget + 1e-12:
-                        continue
-                    if cost <= eps and gain >= 0:
-                        cand = (1, gain, i, j, gain, cost, ev_new)
-                    elif gain > 0 and cost > eps:
-                        cand = (0, gain / cost, i, j, gain, cost, ev_new)
-                    else:
-                        continue
-                else:  # Lagrangian mode
-                    score = gain - mu * cost
-                    if score <= 0:
-                        continue
-                    cand = (0, score, i, j, gain, cost, ev_new)
+                if ev_new.te2 > budget + 1e-12:
+                    continue
+                if cost <= eps and gain >= 0:
+                    cand = (1, gain, i, j, gain, cost, ev_new)
+                elif gain > 0 and cost > eps:
+                    cand = (0, gain / cost, i, j, gain, cost, ev_new)
+                else:
+                    continue
                 if best is None or (cand[0], cand[1]) > (best[0], best[1]):
                     best = cand
         if best is None:
@@ -181,29 +170,6 @@ def _replay(
     return GreedyResult(
         scheme=scheme, evaluation=scheme.evaluate(model, alpha), history=history
     )
-
-
-def lagrangian_frontier(
-    model: UncertaintyModel,
-    alpha: float,
-    mus: np.ndarray,
-    weighting: Weighting = "pivot",
-) -> list[dict]:
-    """Sweep the shadow price mu of residual variance and trace the
-    AVA / fidelity efficient frontier (complementary diagnostic)."""
-    points = []
-    for mu in mus:
-        res = _greedy(model, weighting, alpha, budget=None, mu=float(mu))
-        points.append(
-            {
-                "mu": float(mu),
-                "ava": res.evaluation.ava,
-                "te2": res.evaluation.te2,
-                "r2": res.evaluation.r2,
-                "n_sets": res.scheme.n_sets,
-            }
-        )
-    return points
 
 
 def stress_bundle(bundle: MarketDataBundle, delta: float) -> MarketDataBundle:

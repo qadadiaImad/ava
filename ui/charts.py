@@ -247,47 +247,6 @@ def merge_history_figure(history: list, budget: float, ava_brut: float, height: 
     return fig
 
 
-def frontier_figure(points: list[dict], chosen: dict, var_total: float, alpha: float, height: int = 430) -> go.Figure:
-    te_ratio = [p["te2"] / var_total for p in points]
-    avas = [p["ava"] for p in points]
-    fig = go.Figure()
-    fig.add_trace(
-        go.Scatter(
-            x=te_ratio, y=avas, mode="lines+markers", name="frontier (μ sweep)",
-            marker=dict(
-                size=9, color=[p["n_sets"] for p in points],
-                colorscale="Viridis", showscale=True,
-                colorbar=dict(title="sets", thickness=12),
-            ),
-            line=dict(color="rgba(180,180,220,0.5)", width=2),
-            text=[f"μ={p['mu']:.3g} · {p['n_sets']} sets · R²={p['r2']:.3f}" for p in points],
-            hovertemplate="%{text}<br>TE²/Var=%{x:.3f} · AVA=%{y:,.0f}<extra></extra>",
-        )
-    )
-    fig.add_vline(
-        x=1 - alpha, line=dict(color="#FFC857", dash="dash", width=2),
-        annotation_text="TE² = B (test boundary)", annotation_font_color="#FFC857",
-    )
-    fig.add_trace(
-        go.Scatter(
-            x=[chosen["te2"] / var_total], y=[chosen["ava"]],
-            mode="markers+text", name="retained scheme",
-            marker=dict(size=18, symbol="star", color="#FF5C8A",
-                        line=dict(color="white", width=1.5)),
-            text=["retained"], textposition="top center",
-        )
-    )
-    fig.update_layout(
-        title=dict(y=0.98, yanchor="top", text="AVA / fidelity efficient frontier (complementary)", font=dict(size=16)),
-        xaxis=dict(title="destroyed variance share  TE²/Var(ΔΠ) = 1 − R²"),
-        yaxis=dict(title="AVA (EUR)"),
-        legend=dict(orientation="h", y=1.02, yanchor="bottom"),
-        height=height,
-        **_layout(110),
-    )
-    return fig
-
-
 def spectral_figure(diag, height: int = 430) -> go.Figure:
     n = len(diag.loadings2)
     ks = np.arange(0, n + 1)

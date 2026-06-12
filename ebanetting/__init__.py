@@ -29,7 +29,6 @@ from .optimizer import (
     GreedyResult,
     MergeStep,
     greedy_netting,
-    lagrangian_frontier,
     robust_netting,
     stress_bundle,
 )
@@ -56,12 +55,9 @@ from .clustering import (
 from .reporting import audit_json, build_audit_pack
 from .scenario import (
     ScenarioReport,
-    fit_deformation_model,
     preset_labels,
     score_scenario,
     smile_decomposition,
-    tranche_collapse_variance,
-    tranche_refinement,
 )
 from .twolayer import (
     GroupDecision,
@@ -101,6 +97,14 @@ from .engine import (
     survival_frequencies,
     winsorize_panel,
 )
+from .mockdata import (
+    MockEnvironment,
+    generate_book_extracts,
+    generate_surface_extract,
+    load_mock_environment,
+    parse_book_extracts,
+    parse_surface_extract,
+)
 from .spectral import (
     SpectralDiagnostic,
     node_covariance,
@@ -109,7 +113,7 @@ from .spectral import (
     subspace_stability,
 )
 
-__version__ = "2.4.0"
+__version__ = "2.5.0"
 
 __all__ = [
     "PassageResult",
@@ -145,7 +149,6 @@ __all__ = [
     "GreedyResult",
     "MergeStep",
     "greedy_netting",
-    "lagrangian_frontier",
     "robust_netting",
     "stress_bundle",
     "audit_json",
@@ -159,9 +162,6 @@ __all__ = [
     "spectral_clean",
     "spectral_diagnostic",
     "subspace_stability",
-    "fit_deformation_model",
-    "tranche_collapse_variance",
-    "tranche_refinement",
     "GroupDecision",
     "SmileModel",
     "TrancheMerge",
@@ -196,4 +196,10 @@ __all__ = [
     "stress_engine_model",
     "survival_frequencies",
     "winsorize_panel",
+    "MockEnvironment",
+    "generate_book_extracts",
+    "generate_surface_extract",
+    "load_mock_environment",
+    "parse_book_extracts",
+    "parse_surface_extract",
 ]

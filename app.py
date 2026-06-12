@@ -29,7 +29,6 @@ from ebanetting import (
     build_dendrogram,
     decoupled_netting,
     greedy_netting,
-    lagrangian_frontier,
     preset_labels,
     project_bundle,
     robust_netting,
@@ -104,15 +103,6 @@ def cached_greedy(bundle_json: str, alpha: float, kappa: float, weighting: str):
     bundle = MarketDataBundle.from_json(bundle_json)
     model = UncertaintyModel(bundle=bundle, kappa=kappa)
     return greedy_netting(model, alpha=alpha, weighting=weighting)
-
-
-@st.cache_data(show_spinner=False)
-def cached_frontier(bundle_json: str, alpha: float, kappa: float, weighting: str):
-    bundle = MarketDataBundle.from_json(bundle_json)
-    model = UncertaintyModel(bundle=bundle, kappa=kappa)
-    scale = model.ava_brut / model.var_total if model.var_total > 0 else 1.0
-    mus = np.geomspace(0.02, 200.0, 15) * scale
-    return lagrangian_frontier(model, alpha, mus, weighting=weighting)
 
 
 @st.cache_data(show_spinner=False)
@@ -444,11 +434,6 @@ With budget $B=(1-\\alpha)\\operatorname{Var}(\\Delta\\Pi)$:
    stress** $\\rho\\to\\max(\\rho-\\delta,-1)$, $\\delta\\sim0.1\\!-\\!0.2$; retain only fusions
    robust across regimes — this is what makes the scheme defendable in model review.
 
-**Lagrangian variant (complementary)**: relax (10) into $\\min_{\\mathcal P}\\mathrm{AVA}(\\mathcal P)+\\mu\\,\\mathrm{TE}^2(\\mathcal P)$;
-$\\mu\\ge0$ is the **marginal price of destroyed variance**. Sweeping $\\mu$ traces the
-AVA/fidelity efficient frontier; the retained point is the intersection with
-$\\mathrm{TE}^2=B$ — evidence that the scheme is not an arbitrary point.
-
 ### 7.4 · Shock families and stability
 One formalism, several covariances: $\\Sigma^{\\text{totem}}$ (AVA level + official
 test), $\\Sigma^{\\text{bid-ask}}$ (unwind-cost level), $\\Sigma^{\\text{daily}}$ (daily
@@ -761,27 +746,10 @@ with tab_optimal:
             width="stretch",
         )
 
-    c3, c4 = st.columns(2)
-    with c3:
-        st.plotly_chart(
-            charts.merge_history_figure(history, model.budget(alpha), model.ava_brut),
-            width="stretch",
-        )
-    with c4:
-        show_frontier = st.toggle("Compute Lagrangian efficient frontier (complementary)", value=True)
-        if show_frontier:
-            with st.spinner("Sweeping μ — the shadow price of destroyed variance…"):
-                frontier = cached_frontier(bundle_json, float(alpha), float(kappa), weighting)
-            st.session_state["frontier"] = frontier
-            st.plotly_chart(
-                charts.frontier_figure(
-                    frontier, {"te2": ev.te2, "ava": ev.ava}, model.var_total, alpha
-                ),
-                width="stretch",
-            )
-        else:
-            st.session_state["frontier"] = None
-
+    st.plotly_chart(
+        charts.merge_history_figure(history, model.budget(alpha), model.ava_brut),
+        width="stretch",
+    )
     if rb is not None:
         st.markdown("#### 🛡️ Stress regimes — robustness of the fusions")
         rows = []
@@ -1248,8 +1216,8 @@ with tab_audit:
     st.markdown(
         "### Art. 9(5) evidence pack\n"
         "Everything the validator and the supervisor will ask for: the retained "
-        "partition, realised R², the efficient frontier, stress results and the full "
-        "greedy trace — fingerprinted against the input bundle, per computation date."
+        "partition, realised R², stress results and the full greedy trace — "
+        "fingerprinted against the input bundle, per computation date."
     )
     which = st.radio(
         "Build the pack for", ["Optimal scheme", "Current scenario"], horizontal=True
@@ -1280,7 +1248,6 @@ with tab_audit:
             }
         pack = build_audit_pack(
             bundle, ev_a, kappa=float(kappa),
-            frontier=st.session_state.get("frontier"),
             stress_results=stress_results,
             history=history_a,
         )

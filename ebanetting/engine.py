@@ -215,38 +215,50 @@ def _run_tests(panel, model: EngineModel, alpha: float, reference_book,
     mass = float((np.abs(corr).sum() - np.trace(np.abs(corr)))
                  / max(corr.shape[0] ** 2 - corr.shape[0], 1))
     x = z[:, 1]  # orthonormal slope coordinate
+    # per-tranche, per-date: remove the full-grid fit of every NON-slope
+    # component (level, curvature, kink when present — well-conditioned,
+    # all K points), then fit the slope on each wing of the cleaned row.
+    # A wing-restricted multi-column solve would amplify the idio by the
+    # conditioning of clustered points; cleaning first avoids it, and a
+    # kink mode present in the basis is removed here — so once the
+    # automatic decision has added it, the wing slopes agree again.
+    pz = np.linalg.pinv(z)
+    non_slope = [l for l in range(z.shape[1]) if l != 1]
     torsions = []
     for a in range(M):
+        rows = panel[:, a, :]                       # (T, K)
+        coef_full = pz @ rows.T                     # (Fz, T)
+        cleaned = rows - (z[:, non_slope] @ coef_full[non_slope]).T
         for_wings = []
         for w in (x < 0, x > 0):
             if w.sum() < 2:
                 for_wings = []
                 break
-            # per-date slope of the wing: coefficient on the GLOBAL slope
-            # mode, fitted on the wing with ALL the global basis columns
-            # (incl. the kink mode when present) — a wing-local fit would
-            # re-centre curvature / kink and leak them into the linear
-            # term with opposite signs on the two wings
-            n_cols = min(int(w.sum()), z.shape[1])
-            design = z[w, :n_cols]
-            coefs, *_ = np.linalg.lstsq(design, panel[:, a, :][:, w].T, rcond=None)
-            for_wings.append(coefs[1])
+            xc = x[w] - x[w].mean()
+            sub = cleaned[:, w]
+            slope = (sub - sub.mean(axis=1, keepdims=True)) @ xc / float(xc @ xc)
+            for_wings.append(slope)
         if for_wings and for_wings[0].std() > 1e-12 and for_wings[1].std() > 1e-12:
             torsions.append(float(np.corrcoef(for_wings[0], for_wings[1])[0, 1]))
     torsion = float(np.mean(torsions)) if torsions else 1.0
-    # once the kink mode is in the basis (automatic decision applied) the
-    # torsion is handled structurally: slope and kink are not separately
-    # identifiable on a single wing, and the factor's risk is priced
-    # through Sigma_B — residual torsion would show up in T1 / the mass
-    torsion_handled = bool(torsion >= 0.80 or z.shape[1] > 3)
     tests["T4"] = {
         "offdiag_mass": mass,
         "torsion_corr": torsion,
-        "passed": bool(mass <= 0.10 and torsion_handled),
-        "torsion_passed": torsion_handled,
+        "passed": bool(mass <= 0.10 and torsion >= 0.80),
+        "torsion_passed": bool(torsion >= 0.80),
     }
-    # T5 — separability: sampled pairwise empirical covariances vs
-    # (SigmaT)ab (SigmaK)jl, relative quadratic error
+    # T5 — separability OF THE DATA: sampled pairwise empirical
+    # covariances vs the best separable surrogate. The surrogate is
+    # moment-matched (no matrix inversion):
+    #   (1/n) sum X X' - diag(sum_j eps^2)  =  SigmaT . tr(SigmaK),
+    #   (1/n) sum X'X  - diag(sum_a eps^2)  =  SigmaK . tr(SigmaT),
+    # so the model pair covariance is S_T[a,b] S_K[j,l] / C with
+    # C = total common variance — this keeps T5 a test of the data,
+    # immune to the flip-flop's behaviour on near-singular factors.
+    eps2 = model.sigma_eps ** 2
+    s_t = sum(x @ x.T for x in panel) / panel.shape[0] - np.diag(eps2.sum(axis=1))
+    s_k = sum(x.T @ x for x in panel) / panel.shape[0] - np.diag(eps2.sum(axis=0))
+    c_tot = max(float(np.mean(panel ** 2, axis=0).sum() - eps2.sum()), 1e-300)
     idx = rng.choice(M * K, size=(pair_samples, 2))
     num = den = 0.0
     flat_panel = panel.reshape(panel.shape[0], -1)
@@ -254,9 +266,9 @@ def _run_tests(panel, model: EngineModel, alpha: float, reference_book,
         a, jj = divmod(int(i), K)
         b, ll = divmod(int(j), K)
         emp = float(np.cov(flat_panel[:, i], flat_panel[:, j])[0, 1])
-        mod = model.sigma_t[a, b] * model.sigma_k[jj, ll]
+        mod = s_t[a, b] * s_k[jj, ll] / c_tot
         if i == j:
-            mod += model.sigma_eps[a, jj] ** 2
+            mod += eps2[a, jj]
         num += (emp - mod) ** 2
         den += emp ** 2
     err = float(np.sqrt(num / max(den, 1e-300)))
@@ -338,12 +350,17 @@ def fit_engine_model(
     rng = np.random.default_rng(seed)
     tests, majorant_only, dominant = _run_tests(
         panel, model, alpha, reference_book, pair_samples, rng)
-    if not torsion and not tests["T4"]["torsion_passed"]:
-        # automatic decision: add the crossed odd-even mode and re-estimate
-        return fit_engine_model(panel, tenor_coords, strike_coords, alpha=alpha,
-                                torsion=True, reference_book=reference_book,
-                                min_days_margin=min_days_margin,
-                                pair_samples=pair_samples, seed=seed)
+    if not torsion and not tests["T4"]["passed"]:
+        # automatic decision: try the crossed odd-even (kink) mode and
+        # re-estimate; ADOPT it only if it materially improves the
+        # sandwich's explanatory power — a genuine torsion does, mere
+        # out-of-span noise does not (no spurious factor inflation)
+        refit = fit_engine_model(panel, tenor_coords, strike_coords, alpha=alpha,
+                                 torsion=True, reference_book=reference_book,
+                                 min_days_margin=min_days_margin,
+                                 pair_samples=pair_samples, seed=seed)
+        if refit.tests["T1"]["mean_r2"] >= tests["T1"]["mean_r2"] + 0.02:
+            return refit
     return replace(model, tests=tests, majorant_only=majorant_only,
                    idio_dominant=dominant)
 
@@ -452,9 +469,12 @@ def engine_dendrogram(model: EngineModel, epsilon: float = 0.30,
 
 
 def cut_engine(merges: list[EngineMerge], M: int, K: int,
-               height: float, require_portfolio_free: bool = True) -> np.ndarray:
+               height: float, require_portfolio_free: bool = False) -> np.ndarray:
     """(M, K) labels of the structure at the given cut height — merges
-    applied in order while admissible (height and portfolio-free flag)."""
+    applied in order while height <= cut. The portfolio-free flag MARKS
+    each fusion (sec. 4.1 point 4: the TE <= eps * add-up bound holds for
+    any book on flagged fusions — evidence material); requiring it makes
+    the cut strictly portfolio-free."""
     rects: list[Rect] = [(m, m, k, k) for m in range(M) for k in range(K)]
     for mg in merges:
         if mg.height > height:

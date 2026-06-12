@@ -3,8 +3,7 @@
 The RTS requires documented evidence that netted exposures genuinely
 offset against the parameter uncertainty. This module assembles the
 audit trail recommended in sec. 8 of the note: retained partition,
-realised R^2, efficient frontier, and stress results, per computation
-date — exportable as JSON for the model-validation archive.
+realised R^2 and stress results, per computation date — exportable as JSON for the model-validation archive.
 """
 
 from __future__ import annotations
@@ -31,7 +30,6 @@ def build_audit_pack(
     evaluation: SchemeEvaluation,
     *,
     kappa: float,
-    frontier: list[dict] | None = None,
     stress_results: dict | None = None,
     history: list | None = None,
 ) -> dict:
@@ -86,8 +84,6 @@ def build_audit_pack(
             for s in ev.set_stats
         ],
     }
-    if frontier is not None:
-        pack["efficient_frontier"] = frontier
     if stress_results is not None:
         pack["correlation_stress"] = stress_results
     if history is not None:

@@ -519,50 +519,6 @@ def test_subspace_stability_bounds(bundle):
 # --------------------------------------------------------------------------- #
 # Sec. 6.2 — deformation model and Theoreme 4
 # --------------------------------------------------------------------------- #
-def test_deformation_model_recovery_and_th4():
-    """Simulate shocks under the model (9); the fit recovers the shape-shock
-    variances and Th. 4 (iii) matches the simulated collapse residual."""
-    from ebanetting import fit_deformation_model, tranche_collapse_variance
-
-    rng = np.random.default_rng(42)
-    x = np.array([0.80, 0.90, 1.00, 1.10, 1.20]) - 1.0
-    atm = 2
-    T = 20000
-    var_s, var_c = 0.30 ** 2, 0.15 ** 2
-    dS = rng.normal(0, np.sqrt(var_s), T)
-    dC = rng.normal(0, np.sqrt(var_c), T)
-    atm_shock = rng.normal(0, 0.5, T)
-    z = x - x[atm]
-    shocks = atm_shock[:, None] + dS[:, None] * z[None, :] + dC[:, None] * z[None, :] ** 2
-    fit = fit_deformation_model(x, shocks, atm)
-    assert fit["r2"] == pytest.approx(1.0, abs=1e-10)        # noiseless model
-    assert fit["var_skew"] == pytest.approx(var_s, rel=0.05)
-    assert fit["var_curv"] == pytest.approx(var_c, rel=0.05)
-    # Th. 4: collapse residual variance of a book on this tranche
-    nu = np.array([300.0, -150.0, 800.0, -200.0, -400.0])
-    rr, fly = float(nu @ z), float(nu @ z ** 2)
-    closed = tranche_collapse_variance(rr, fly, fit["var_skew"], fit["var_curv"],
-                                       fit["cov_skew_curv"])
-    resid = shocks - shocks[:, [atm]]
-    simulated = float(np.var(resid @ nu))
-    assert closed == pytest.approx(simulated, rel=0.02)
-    # Th. 4 (ii): a pure-level book has zero collapse residual
-    level_book = np.full(5, 100.0)
-    assert tranche_collapse_variance(float(level_book @ z), float(level_book @ z ** 2),
-                                     fit["var_skew"], fit["var_curv"]) == pytest.approx(
-        float(np.var(resid @ level_book)), abs=1e-6)
-
-
-def test_tranche_refinement_is_addup_of_components():
-    """S2: level netted on ATM + RR / FLY carved out in add-up."""
-    from ebanetting import tranche_refinement
-
-    out = tranche_refinement(level=500.0, rr=-120.0, fly=80.0,
-                             s_atm=0.3, s_skew=0.6, s_fly=0.9, kappa=KAPPA_90)
-    assert out["ava_total"] == pytest.approx(
-        KAPPA_90 * (500.0 * 0.3 + 120.0 * 0.6 + 80.0 * 0.9))
-
-
 # --------------------------------------------------------------------------- #
 # Two-layer methodology (companion note) — worked example and theorems
 # --------------------------------------------------------------------------- #
@@ -825,15 +781,22 @@ def test_model_battery_behaviour():
     # fallback is the intended behaviour there, not an error.)
     assert m_p.z.shape[1] == 3
 
-    # --- world P + genuine torsion (kink |x|, opposite wing slopes)
-    w_shape = np.abs(x) / np.linalg.norm(np.abs(x))
+    # --- world P + genuine torsion: the OUT-OF-SPAN part of the kink |x|
+    # (its in-span part would be absorbed by the 9 factors and violate
+    # nothing — adding it would not justify a new mode)
+    w_shape = np.abs(x)
+    w_shape = w_shape - z @ (z.T @ w_shape)
+    w_shape /= np.linalg.norm(w_shape)
     tor = rng.normal(0, 0.6, 4000)
     panel_t = panel_p + tor[:, None, None] * np.ones((M, 1))[None, :, :] \
         * w_shape[None, None, :]
     m_t = fit_engine_model(panel_t, tenors, strikes, alpha=0.95, seed=4)
-    assert m_t.z.shape[1] == 4              # the automatic decision fired
-    assert m_t.tests["T1"]["mean_r2"] >= 0.95   # the kink mode re-explains
-    assert m_t.tests["T4"]["torsion_passed"]    # handled structurally
+    base_t = fit_engine_model(panel_p, tenors, strikes, alpha=0.95, seed=4)
+    # the automatic decision fired AND was adopted (it re-explains the
+    # surface); on the torsion-free panel it was not
+    assert m_t.z.shape[1] == 4
+    assert m_t.tests["T1"]["mean_r2"] >= 0.95
+    assert base_t.z.shape[1] == 3
 
 
 def test_engine_invariances(engine_world):
@@ -962,3 +925,83 @@ def test_adapters_quality_utilities():
     panel2[3:12, 1, 1] = 0.0          # 9 consecutive flat days
     mask = stale_cells(panel2, max_flat=5)
     assert mask[1, 1] and not mask[0, 0]
+
+
+# --------------------------------------------------------------------------- #
+# Mock data + mock parsers (adapters of the engine sheet) — emergent results
+# --------------------------------------------------------------------------- #
+def test_mock_parser_roundtrip():
+    """The parsers reconstruct exactly what the extracts encode: the
+    fixed grid, the panel as FIRST DIFFERENCES of the vol levels, and one
+    vega matrix per book on the same grid; off-grid cells are an error."""
+    from ebanetting import (generate_book_extracts, generate_surface_extract,
+                            parse_book_extracts, parse_surface_extract)
+    from ebanetting.mockdata import MOCK_STRIKES, MOCK_TENORS
+
+    surf = parse_surface_extract(generate_surface_extract("smooth", 60, seed=3))
+    assert surf["tenor_labels"] == MOCK_TENORS
+    assert surf["strikes"] == MOCK_STRIKES
+    np.testing.assert_allclose(surf["panel"], np.diff(surf["levels"], axis=0))
+    books = parse_book_extracts(generate_book_extracts(3, seed=3),
+                                surf["tenor_labels"], surf["strikes"])
+    assert len(books) == 3
+    for v in books.values():
+        assert v.shape == (len(MOCK_TENORS), len(MOCK_STRIKES))
+        assert np.abs(v).max() > 0
+    with pytest.raises(ValueError):
+        parse_book_extracts("book,tenor,strike,vega\nB,7Y,0.80,1.0",
+                            surf["tenor_labels"], surf["strikes"])
+
+
+def test_mock_cases_differentiate_emergently():
+    """The three simulated regimes produce the engine behaviours they
+    represent — nothing is asserted about specific numbers, only about
+    the direction the regime must imply if the chain is honest."""
+    from ebanetting import fit_engine_model, load_mock_environment
+
+    models = {}
+    for case in ("smooth", "torsion", "choppy"):
+        env = load_mock_environment(case, n_books=2, n_days=400, seed=11)
+        models[case] = fit_engine_model(env.panel, env.tenor_years,
+                                        env.strikes, alpha=0.95, seed=2)
+    # smooth: the sandwich world holds — full exact machinery available
+    assert models["smooth"].tests["T1"]["passed"]
+    assert not models["smooth"].majorant_only
+    assert models["smooth"].z.shape[1] == 3
+    # torsion: the kink decision fires on its own and re-explains
+    assert models["torsion"].z.shape[1] == 4
+    assert not models["torsion"].majorant_only
+    # choppy: structure drowned in idio — conservative majorant fallback
+    assert models["choppy"].majorant_only
+    assert models["choppy"].idio_dominant.sum() > 0
+
+
+def test_mock_multibook_run_is_emergent():
+    """Full chain on the smooth case: the frozen cut nets, every book
+    respects the floor and never beats the add-up unfairly; savings vary
+    across books because compositions vary — none of it is scripted."""
+    from ebanetting import (KAPPA_90, cut_engine, engine_dendrogram,
+                            evaluate_book_engine, fit_engine_model,
+                            load_mock_environment, select_cut)
+
+    env = load_mock_environment("smooth", n_books=5, n_days=400, seed=29)
+    model = fit_engine_model(env.panel, env.tenor_years, env.strikes,
+                             alpha=0.95, seed=2)
+    assert not model.majorant_only
+    merges = engine_dendrogram(model)
+    ref = list(env.books.values())[0]
+    sel = select_cut(model, merges, ref, alpha=0.95, kappa=KAPPA_90)
+    assert sel["chosen"] is not None and sel["chosen"]["admissible"]
+    labels = cut_engine(merges, len(env.tenor_labels), len(env.strikes),
+                        sel["chosen"]["height"])
+    assert labels.max() + 1 < labels.size          # the cut actually nets
+    savings = {}
+    for name, book in env.books.items():
+        run = evaluate_book_engine(book, model, labels, alpha=0.95, kappa=KAPPA_90)
+        assert run.passes_floor                     # never under-provisioned
+        assert run.ava <= run.ava_brut + 1e-9       # never above add-up
+        assert run.te2_majorant >= run.te2 - 1e-9   # majorant always logged & above
+        savings[name] = run.ava_brut - run.ava
+    assert all(v >= -1e-9 for v in savings.values())
+    assert max(savings.values()) > 0                # some netting emerges
+    assert len(set(round(v, 6) for v in savings.values())) > 1   # books differ

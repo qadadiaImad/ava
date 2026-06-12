@@ -35,8 +35,6 @@ correlation stress, and the full art. 9(5) audit trail.
 | Two-node closed form (§5.2, Théorème 2, eq. 8) | `two_bucket()` — unit-tested against the engine |
 | Spectral diagnostic: factors of Σ, risk map, Théorème 3 floor (§6.1) | `ebanetting/spectral.py` — `spectral_diagnostic()` |
 | Spectral cleaning of a noisy Σ̂ + subspace stability (§6.1.4, U3/U4) | `spectral_clean()`, `subspace_stability()` |
-| Smile deformation model & Théorème 4 go/no-go (§6.2, Déf. 5) | `fit_deformation_model()`, `tranche_collapse_variance()` |
-| Collapse refinement: level netted, RR/FLY carved out (§6.2, S2) | `tranche_refinement()` |
 | Greedy agglomerative algorithm under budget (§7.3) | `ebanetting/optimizer.py` — `greedy_netting()` |
 | Rectangular contiguous pavings of the node grid (§7.3) | rectangle-union merge candidates |
 | Adverse correlation stress ρ → max(ρ−δ,−1) (step 4, §7.3) | `stress_bundle()`, `robust_netting()` |
@@ -47,7 +45,6 @@ correlation stress, and the full art. 9(5) audit trail.
 | Run 2: AVA on the cut + per-book TE²/Var check (§7.5) | `decoupled_netting()`, `evaluate_cut()` |
 | Decoupling hypothesis ρ2D = ρ_mat·ρ_strike, entrywise (annex §8) | per-axis `corr_mat` / `corr_strike` inputs |
 | Art. 9(5) evidence pack (§9) | `ebanetting/reporting.py` |
-| Lagrangian efficient frontier (complementary) | `lagrangian_frontier()` |
 | **Two-layer companion note** — smile model, Th. 1 disagreement d_ij | `ebanetting/twolayer.py` — `SmileModel`, `model_distance()` |
 | Generated correlation ρ(x) = s₀/sₓ (Prop. 2) | `generated_correlation()` |
 | Tranche dendrogram, pivot-linkage, most-liquid pivots (A3) | `tranche_dendrogram()`, `cut_tranche()` |
@@ -63,6 +60,35 @@ correlation stress, and the full art. 9(5) audit trail.
 | Stability: survival frequency, ARI, principal angles | `survival_frequencies()`, `adjusted_rand_index()`, `principal_angle_cosines()` |
 | Select: frozen cut sweep + minimum-benefit guard across families | `select_cut()`, `min_benefit_guard()` |
 | Golden material: synthetic generator, invariances | `simulate_panel()` + test suite |
+| Mock extracts + mock parsers, multi-book (adapters) | `ebanetting/mockdata.py` — `load_mock_environment()` |
+
+## Mock data, multi-book (honest simulation through the parsers)
+
+`ebanetting/mockdata.py` simulates a world first (surface dynamics + random
+multi-book vega inventories), writes the raw extracts an FO / risk system
+would produce (CSV: surface levels by date; sensi rows per book), and parses
+them back — the engine only ever consumes parsed extracts. Three regimes:
+`smooth` (the sandwich genuinely holds → real netting emerges), `torsion`
+(the T4 kink decision fires on its own), `choppy` (idio-drowned → the engine
+degrades to the conservative majorant mode and nets nothing). Every result
+downstream is **emergent from the simulation** — nothing is tuned to produce
+an outcome.
+
+```python
+from ebanetting import (load_mock_environment, fit_engine_model,
+                        engine_dendrogram, select_cut, cut_engine,
+                        evaluate_book_engine, KAPPA_90)
+
+env = load_mock_environment("smooth", n_books=5, n_days=400, seed=29)
+model = fit_engine_model(env.panel, env.tenor_years, env.strikes, alpha=0.95)
+merges = engine_dendrogram(model)
+sel = select_cut(model, merges, list(env.books.values())[0], 0.95, KAPPA_90)
+labels = cut_engine(merges, len(env.tenor_labels), len(env.strikes),
+                    sel["chosen"]["height"])
+for name, book in env.books.items():
+    run = evaluate_book_engine(book, model, labels, 0.95, KAPPA_90)
+    print(name, run.ava, run.ava_brut, run.passes_variance, run.passes_floor)
+```
 
 ## Quick start
 
@@ -89,8 +115,7 @@ python -m pytest tests/ -q
   tracking error of the quadrant / equal / interp conventions (Théorème 1).
 - **🧠 Optimal Netting** — the joint greedy optimiser: retained rectangular partition on
   the grid, AVA waterfall (add-up → netted vs the diversification floor),
-  budget-consumption path, Lagrangian efficient frontier, robust mode with
-  correlation-stress regimes.
+  budget-consumption path, robust mode with correlation-stress regimes.
 - **🧬 Two-Layer** — the companion methodology end to end on a tranche: the layer-1
   deformation model (editable σ_S, σ_C, σ_ε), the disagreement matrix and the generated
   correlation curve, the dendrogram cut, then the layer-2 book decisions with the exact
@@ -191,6 +216,7 @@ eba-vega-netting/
 │   ├── clustering.py       #   sec. 7.5 dendrogram / Prop. 8 / Run 2 + sec. 7.4 stability
 │   ├── twolayer.py         #   companion note: smile model, exact layer-2, N1-N4
 │   ├── engine.py           #   engine sheet: flip-flop, sandwich, T1-T6, E1-E6, select
+│   ├── mockdata.py         #   mock extracts + mock parsers (multi-book, 3 regimes)
 │   ├── netting.py          #   partition operator, variance test, floor, two-node
 │   ├── optimizer.py        #   greedy under budget, frontier, correlation stress
 │   ├── spectral.py         #   sec. 6.1: factors of Σ, Th. 3 floor, cleaning, stability
