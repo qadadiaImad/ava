@@ -54,6 +54,15 @@ correlation stress, and the full art. 9(5) audit trail.
 | Exact group residual, general pivot + idio floor (Th. 2) | `group_residual_variance()` vs `majorant_residual_sd()` |
 | Barycenter pivot x_p = RR₀/m kills RR exactly (sec. 6.3) | `barycenter_pivot()` |
 | Decisions N1–N4: collapse / extraction / scission (sec. 6.4) | `evaluate_book()` — never all-or-nothing |
+| **Engine sheet (volet 2/2)** — flip-flop separable estimation | `ebanetting/engine.py` — `flip_flop()`, `fit_engine_model()` |
+| 2-D sandwich X = Y·B·Zᵀ + E, exposure G = Yᵀ N Z, Σ_B, idio map | `EngineModel` (orthonormal bases, leverage-corrected idio) |
+| T1–T6 battery + automatic decisions (majorant mode, torsion factor, idio exclusions) | `EngineModel.tests` |
+| Exact TE² = tr(Aᵀ ΣT A ΣK) + ΣA²σε² on ONE global gap pattern | `EngineModel.variance_of()`, `evaluate_book_engine()` (E1–E6) |
+| GA = Yᵀ A Z extraction diagnostic, AVA, floor | `EngineRun` |
+| Structure: stress, closed-form distances, clustering, portfolio-free flag | `engine_dendrogram()`, `cut_engine()` |
+| Stability: survival frequency, ARI, principal angles | `survival_frequencies()`, `adjusted_rand_index()`, `principal_angle_cosines()` |
+| Select: frozen cut sweep + minimum-benefit guard across families | `select_cut()`, `min_benefit_guard()` |
+| Golden material: synthetic generator, invariances | `simulate_panel()` + test suite |
 
 ## Quick start
 
@@ -181,6 +190,7 @@ eba-vega-netting/
 │   ├── passage.py          #   step 1: passage (sandwich, Th. 1) + restriction (Prop. 5)
 │   ├── clustering.py       #   sec. 7.5 dendrogram / Prop. 8 / Run 2 + sec. 7.4 stability
 │   ├── twolayer.py         #   companion note: smile model, exact layer-2, N1-N4
+│   ├── engine.py           #   engine sheet: flip-flop, sandwich, T1-T6, E1-E6, select
 │   ├── netting.py          #   partition operator, variance test, floor, two-node
 │   ├── optimizer.py        #   greedy under budget, frontier, correlation stress
 │   ├── spectral.py         #   sec. 6.1: factors of Σ, Th. 3 floor, cleaning, stability

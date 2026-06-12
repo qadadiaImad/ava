@@ -80,6 +80,27 @@ from .twolayer import (
     model_distance,
     tranche_dendrogram,
 )
+from .engine import (
+    EngineModel,
+    EngineRun,
+    adjusted_rand_index,
+    cell_distances,
+    cell_liquidity,
+    cut_engine,
+    engine_dendrogram,
+    evaluate_book_engine,
+    fit_engine_model,
+    flip_flop,
+    min_benefit_guard,
+    orthonormal_basis,
+    principal_angle_cosines,
+    select_cut,
+    simulate_panel,
+    stale_cells,
+    stress_engine_model,
+    survival_frequencies,
+    winsorize_panel,
+)
 from .spectral import (
     SpectralDiagnostic,
     node_covariance,
@@ -88,7 +109,7 @@ from .spectral import (
     subspace_stability,
 )
 
-__version__ = "2.3.0"
+__version__ = "2.4.0"
 
 __all__ = [
     "PassageResult",
@@ -156,4 +177,23 @@ __all__ = [
     "majorant_residual_sd",
     "model_distance",
     "tranche_dendrogram",
+    "EngineModel",
+    "EngineRun",
+    "adjusted_rand_index",
+    "cell_distances",
+    "cell_liquidity",
+    "cut_engine",
+    "engine_dendrogram",
+    "evaluate_book_engine",
+    "fit_engine_model",
+    "flip_flop",
+    "min_benefit_guard",
+    "orthonormal_basis",
+    "principal_angle_cosines",
+    "select_cut",
+    "simulate_panel",
+    "stale_cells",
+    "stress_engine_model",
+    "survival_frequencies",
+    "winsorize_panel",
 ]
