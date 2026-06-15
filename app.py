@@ -100,16 +100,17 @@ st.markdown(
 # Cached computations
 # --------------------------------------------------------------------------- #
 @st.cache_data(show_spinner=False)
-def cached_greedy(bundle_json: str, alpha: float, kappa: float, weighting: str):
+def cached_greedy(bundle_json: str, alpha: float, kappa: float, weighting: str, objective: str = "ava"):
     bundle = MarketDataBundle.from_json(bundle_json)
     model = UncertaintyModel(bundle=bundle, kappa=kappa)
-    return greedy_netting(model, alpha=alpha, weighting=weighting)
+    return greedy_netting(model, alpha=alpha, weighting=weighting, objective=objective)
 
 
 @st.cache_data(show_spinner=False)
-def cached_robust(bundle_json: str, alpha: float, kappa: float, weighting: str, deltas: tuple):
+def cached_robust(bundle_json: str, alpha: float, kappa: float, weighting: str, deltas: tuple, objective: str = "ava"):
     bundle = MarketDataBundle.from_json(bundle_json)
-    return robust_netting(bundle, alpha=alpha, kappa=kappa, deltas=list(deltas), weighting=weighting)
+    return robust_netting(bundle, alpha=alpha, kappa=kappa, deltas=list(deltas),
+                          weighting=weighting, objective=objective)
 
 
 @st.cache_resource(show_spinner=False)
@@ -721,6 +722,16 @@ with tab_passage:
 # =========================================================================== #
 with tab_optimal:
     st.markdown("### Optimisation gloutonne agglomérative sous budget de variance (sec. 7.3)")
+    obj_ava = st.toggle(
+        "💶 Inclure le coût AVA dans l'objectif (sinon : optimiser selon la TE seule)",
+        value=True,
+        help="Activé (défaut, sec. 7.3) : chaque fusion est classée par réduction "
+        "d'AVA par unité de variance résiduelle consommée. Désactivé : les fusions "
+        "sont classées par coût en tracking error croissant (les moins chères "
+        "d'abord), pour agréger le plus possible sous le budget sans pondérer par "
+        "l'AVA — la partition obtenue n'est alors pas garantie optimale en AVA.",
+    )
+    objective = "ava" if obj_ava else "te"
     opt_col1, opt_col2 = st.columns([1, 1])
     with opt_col1:
         robust_mode = st.toggle(
@@ -735,10 +746,10 @@ with tab_optimal:
         )
 
     with st.spinner("Agglomération gloutonne en cours…"):
-        result = cached_greedy(bundle_json, float(alpha), float(kappa), weighting)
+        result = cached_greedy(bundle_json, float(alpha), float(kappa), weighting, objective)
     if robust_mode and deltas:
         with st.spinner("Rejeu sous stress de corrélation…"):
-            rb = cached_robust(bundle_json, float(alpha), float(kappa), weighting, tuple(sorted(deltas)))
+            rb = cached_robust(bundle_json, float(alpha), float(kappa), weighting, tuple(sorted(deltas)), objective)
         ev = rb["robust_evaluation"]
         scheme = rb["robust_scheme"]
         history = result.history
@@ -766,6 +777,11 @@ with tab_optimal:
     )
     if result.rolled_back:
         st.warning(f"Plancher (7) initialement violé — {result.rolled_back} fusion(s) défaite(s) (étape 3).")
+    if objective == "te":
+        st.caption(
+            "⚙️ Objectif **TE seule** : fusions classées par coût de variance croissant, "
+            "sans pondération par l'AVA — la partition n'est pas garantie AVA-optimale."
+        )
 
     c1, c2 = st.columns([1.15, 1])
     with c1:

@@ -17,7 +17,7 @@ Also provides the adverse correlation stress / robust-fusion procedure
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from typing import Optional
+from typing import Literal, Optional
 
 import numpy as np
 
@@ -35,6 +35,12 @@ __all__ = [
 ]
 
 Rect = tuple[int, int, int, int]  # (r0, r1, c0, c1) inclusive
+
+#: Greedy objective. "ava" (default, sec. 7.3): rank merges by AVA reduction
+#: per unit residual-variance cost. "te": rank by residual-variance cost only
+#: (cheapest first), ignoring the AVA gain — packs the most netting under the
+#: budget, but the partition is not AVA-optimal.
+Objective = Literal["ava", "te"]
 
 
 def _labels_from_rects(rects: list[Rect], M: int, K: int) -> np.ndarray:
@@ -85,6 +91,7 @@ def _greedy(
     weighting: Weighting,
     alpha: float,
     budget: float,
+    objective: Objective = "ava",
 ) -> GreedyResult:
     """Constrained greedy engine of sec. 7.3."""
     M, K = model.bundle.M, model.bundle.K
@@ -107,7 +114,12 @@ def _greedy(
                 cost = ev_new.te2 - ev.te2
                 if ev_new.te2 > budget + 1e-12:
                     continue
-                if cost <= eps and gain >= 0:
+                if objective == "te":
+                    # Optimise with respect to the tracking error only: rank
+                    # merges by ascending TE^2 cost (cheapest first, zero-cost
+                    # merges naturally on top), ignoring the AVA gain.
+                    cand = (0, -cost, i, j, gain, cost, ev_new)
+                elif cost <= eps and gain >= 0:
                     cand = (1, gain, i, j, gain, cost, ev_new)
                 elif gain > 0 and cost > eps:
                     cand = (0, gain / cost, i, j, gain, cost, ev_new)
@@ -143,9 +155,16 @@ def greedy_netting(
     model: UncertaintyModel,
     alpha: float,
     weighting: Weighting = "pivot",
+    objective: Objective = "ava",
 ) -> GreedyResult:
-    """Constrained greedy of sec. 7.3, including the floor roll-back (step 3)."""
-    result = _greedy(model, weighting, alpha, budget=model.budget(alpha))
+    """Constrained greedy of sec. 7.3, including the floor roll-back (step 3).
+
+    ``objective`` selects the merge ranking: ``"ava"`` (default) maximises the
+    AVA reduction per unit residual-variance cost; ``"te"`` ranks by the
+    residual-variance cost alone (cheapest merges first), ignoring the AVA gain.
+    The variance budget and the conservatism-floor roll-back apply in both cases.
+    """
+    result = _greedy(model, weighting, alpha, budget=model.budget(alpha), objective=objective)
     # Step 3: conservatism floor (7). Roll merges back from the end until met.
     rolled = 0
     history = list(result.history)
@@ -203,16 +222,18 @@ def robust_netting(
     kappa: float,
     deltas: list[float],
     weighting: Weighting = "pivot",
+    objective: Objective = "ava",
 ) -> dict:
     """Step 4 of the algorithm: re-run the greedy under correlation stress
     and keep only the fusions that survive every regime — the retained
     partition is the common refinement of the per-regime partitions,
-    re-evaluated under the base model."""
+    re-evaluated under the base model. ``objective`` is forwarded to every
+    greedy run."""
     base_model = UncertaintyModel(bundle=bundle, kappa=kappa)
-    runs = {0.0: greedy_netting(base_model, alpha, weighting)}
+    runs = {0.0: greedy_netting(base_model, alpha, weighting, objective)}
     for d in deltas:
         stressed = UncertaintyModel(bundle=stress_bundle(bundle, d), kappa=kappa)
-        runs[d] = greedy_netting(stressed, alpha, weighting)
+        runs[d] = greedy_netting(stressed, alpha, weighting, objective)
 
     # Common refinement: buckets stay together only if together in all runs.
     stacked = np.stack([r.scheme.labels for r in runs.values()], axis=-1)

@@ -20,8 +20,12 @@ rectangulaires contigus** et on agglomère glouton­nement.
    - à chaque itération, parcourt toutes les paires de rectangles **adjacents et
      fusionnables** (`_mergeable`, `_union`) dont l'union reste un rectangle ;
    - évalue chaque essai via `NettingScheme.evaluate` (voir ci-dessous) ;
-   - **priorise** : d'abord les fusions à coût nul (`cost ≤ eps` et `gain ≥ 0`), puis
-     celles maximisant `gain/cost` (réduction d'AVA par unité de variance résiduelle) ;
+   - **priorise** selon l'objectif (`objective`, voir le toggle ci-dessous) :
+     - `"ava"` (défaut) : d'abord les fusions à coût nul (`cost ≤ eps` et `gain ≥ 0`),
+       puis celles maximisant `gain/cost` (réduction d'AVA par unité de variance
+       résiduelle) ;
+     - `"te"` : classe les fusions par coût en variance croissant (`−cost`, les moins
+       chères d'abord, coût nul en tête), **sans** pondérer par le gain d'AVA ;
    - rejette toute fusion qui ferait dépasser le budget `B = (1−α)·Var` ;
    - enregistre chaque fusion retenue dans un `MergeStep`.
    - **Étape 3 (roll-back du plancher)** : tant que `passes_floor` est faux, on retire
@@ -35,7 +39,12 @@ rectangulaires contigus** et on agglomère glouton­nement.
    - `proxy = Σ_r m_r W_r`, `residual = N − proxy`, `te2 = Var(residual)` ;
    - `R² = 1 − te2/var_total`, `AVA = κ Σ|m_r| s̃_r` ;
    - `passes_variance` (te2 ≤ budget), `passes_floor` (AVA ≥ ava_full), `set_stats`.
-3. **Mode robuste** (toggle). `cached_robust(...)` → `robust_netting(bundle, alpha,
+3. **Objectif d'optimisation** (toggle « 💶 Inclure le coût AVA dans l'objectif »).
+   Activé → `objective="ava"` (comportement par défaut ci-dessus) ; désactivé →
+   `objective="te"` (optimisation selon la tracking error seule). Le paramètre est
+   transmis à `greedy_netting` et, en mode robuste, à chaque run de `robust_netting`.
+   Le budget de variance et le roll-back du plancher (7) s'appliquent dans les deux cas.
+4. **Mode robuste** (toggle). `cached_robust(...)` → `robust_netting(bundle, alpha,
    kappa, deltas, weighting)` (`optimizer.py:200`) : rejoue le glouton sous
    `stress_bundle` (ρ → max(ρ−δ, −1), `optimizer.py:175`) pour chaque δ, puis prend le
    **raffinement commun** (deux buckets restent ensemble seulement s'ils le sont dans
@@ -57,6 +66,13 @@ de stress, expander du détail par ensemble. Les résultats sont mémorisés dan
   (compensation parfaite, aucune variance résiduelle) sont prises d'abord. Ensuite, on
   achète la réduction d'AVA la plus efficace par unité de budget de variance dépensé —
   l'analogue prudentiel d'un ratio coût/bénéfice.
+- **Pourquoi un objectif « TE seule » optionnel.** L'objectif AVA ignore les fusions
+  sans gain d'AVA (`gain ≤ 0`), même quand elles ne coûtent presque rien en fidélité
+  (p. ex. des vegas de même signe). L'objectif TE seule les retient : il agrège le plus
+  possible tant que le budget de variance le permet, en classant par coût croissant.
+  Il répond à « quelle est la maille de netting la plus grossière justifiable par la
+  seule fidélité ? » plutôt qu'à « quelle partition minimise l'AVA ? ». La partition
+  obtenue n'est pas garantie AVA-optimale, d'où le toggle (défaut = objectif AVA).
 - **Pourquoi le roll-back du plancher.** Le test (6) contrôle la *fidélité* ; le
   plancher (7) contrôle le *niveau*. Une partition peut passer (6) mais descendre
   l'AVA sous `κ√Var` — interdit. On défait alors les dernières fusions jusqu'à
