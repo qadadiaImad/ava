@@ -57,7 +57,7 @@ def heatmap(
             x=[str(x) for x in x_labels],
             y=[str(y) for y in y_labels],
             colorbar=dict(title=colorbar_title, thickness=14),
-            hovertemplate="strike %{x} · tenor %{y}<br>value %{z:,.2f}<extra></extra>",
+            hovertemplate="strike %{x} · maturité %{y}<br>valeur %{z:,.2f}<extra></extra>",
             **kwargs,
         )
     )
@@ -75,7 +75,7 @@ def partition_figure(
     vega: np.ndarray,
     tenors: list[str],
     strikes: list[float],
-    title: str = "Netting sets on the tenor × strike grid",
+    title: str = "Ensembles de netting sur la grille maturité × strike",
     set_stats: list | None = None,
     height: int = 520,
 ) -> go.Figure:
@@ -98,11 +98,11 @@ def partition_figure(
             if set_stats is not None:
                 st_ = set_stats[sid]
                 extra = (
-                    f"<br>net vega {_fmt(st_.net_vega)} · gross {_fmt(st_.gross_vega)}"
-                    f"<br>offset {st_.offset_ratio:.0%} · s̃ {st_.s_tilde:.2f}"
+                    f"<br>vega net {_fmt(st_.net_vega)} · brut {_fmt(st_.gross_vega)}"
+                    f"<br>compensation {st_.offset_ratio:.0%} · s̃ {st_.s_tilde:.2f}"
                 )
             hover[m, k] = (
-                f"set {sid} · tenor {tenors[m]} · strike {strikes[k]}"
+                f"ensemble {sid} · maturité {tenors[m]} · strike {strikes[k]}"
                 f"<br>vega {_fmt(vega[m, k])}{extra}"
             )
     fig = go.Figure(
@@ -151,7 +151,7 @@ def partition_figure(
         ),
         yaxis=dict(
             tickvals=list(range(M)), ticktext=tenors, autorange="reversed",
-            title="tenor", showgrid=False, zeroline=False,
+            title="maturité", showgrid=False, zeroline=False,
         ),
         height=height,
         **_LAYOUT,
@@ -164,7 +164,7 @@ def ava_waterfall(ava_brut: float, ava_netted: float, ava_full: float, height: i
         go.Waterfall(
             orientation="v",
             measure=["absolute", "relative", "total"],
-            x=["AVA add-up (2)", "netting benefit", "AVA netted (Def. 4)"],
+            x=["AVA add-up (2)", "bénéfice de netting", "AVA nettée (Déf. 4)"],
             y=[ava_brut, -(ava_brut - ava_netted), 0.0],
             text=[_fmt(ava_brut), f"−{_fmt(ava_brut - ava_netted)}", _fmt(ava_netted)],
             textposition="outside",
@@ -176,11 +176,11 @@ def ava_waterfall(ava_brut: float, ava_netted: float, ava_full: float, height: i
     )
     fig.add_hline(
         y=ava_full, line=dict(color="#B388EB", dash="dash", width=2),
-        annotation_text=f"floor (7): full diversification κ√Var(ΔΠ) = {_fmt(ava_full)}",
+        annotation_text=f"plancher (7) : diversification complète κ√Var(ΔΠ) = {_fmt(ava_full)}",
         annotation_font_color="#B388EB",
     )
     fig.update_layout(
-        title=dict(y=0.98, yanchor="top", text="AVA decomposition", font=dict(size=16)),
+        title=dict(y=0.98, yanchor="top", text="Décomposition de l'AVA", font=dict(size=16)),
         yaxis_title="AVA (EUR)", showlegend=False, height=height, **_LAYOUT,
     )
     return fig
@@ -206,7 +206,7 @@ def r2_gauge(r2: float, alpha: float, height: int = 320) -> go.Figure:
                     line=dict(color="#FFC857", width=4), thickness=0.8, value=alpha * 100
                 ),
             ),
-            title=dict(text="variance score R² (Def. 3)", font=dict(size=15)),
+            title=dict(text="score de variance R² (Déf. 3)", font=dict(size=15)),
         )
     )
     fig.update_layout(height=height, **_LAYOUT)
@@ -220,7 +220,7 @@ def merge_history_figure(history: list, budget: float, ava_brut: float, height: 
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
-            x=steps, y=te2, name="TE² consumed", fill="tozeroy",
+            x=steps, y=te2, name="TE² consommé", fill="tozeroy",
             line=dict(color="#5BC0EB", width=3),
             fillcolor="rgba(91,192,235,0.25)",
         )
@@ -236,9 +236,9 @@ def merge_history_figure(history: list, budget: float, ava_brut: float, height: 
         )
     )
     fig.update_layout(
-        title=dict(y=0.98, yanchor="top", text="Greedy agglomeration path (sec. 7.3)", font=dict(size=16)),
-        xaxis_title="merge step",
-        yaxis=dict(title="TE² (residual variance)"),
+        title=dict(y=0.98, yanchor="top", text="Trajectoire de l'agglomération gloutonne (sec. 7.3)", font=dict(size=16)),
+        xaxis_title="étape de fusion",
+        yaxis=dict(title="TE² (variance résiduelle)"),
         yaxis2=dict(title="AVA (EUR)", overlaying="y", side="right", showgrid=False),
         legend=dict(orientation="h", y=1.02, yanchor="bottom"),
         height=height,
@@ -254,30 +254,30 @@ def spectral_figure(diag, height: int = 430) -> go.Figure:
     fig = go.Figure()
     fig.add_trace(
         go.Bar(
-            x=np.arange(1, n + 1), y=diag.loadings2, name="c_ℓ²λ_ℓ — risk map (Prop. 7)",
+            x=np.arange(1, n + 1), y=diag.loadings2, name="c_ℓ²λ_ℓ — carte de risque (Prop. 7)",
             marker=dict(color="#B388EB"),
         )
     )
     fig.add_trace(
         go.Scatter(
-            x=ks, y=resid_share, name="TE² floor / Var (Théorème 3)",
+            x=ks, y=resid_share, name="plancher TE² / Var (Théorème 3)",
             yaxis="y2", line=dict(color="#3DDC97", width=3),
         )
     )
     fig.add_hline(
         y=1 - diag.alpha, yref="y2",
         line=dict(color="#FFC857", dash="dash", width=2),
-        annotation_text="budget share (1−α)", annotation_font_color="#FFC857",
+        annotation_text="part de budget (1−α)", annotation_font_color="#FFC857",
     )
     fig.add_vline(
         x=diag.k_star, line=dict(color="#FF5C8A", dash="dot", width=2),
         annotation_text=f"K*(α) = {diag.k_star}", annotation_font_color="#FF5C8A",
     )
     fig.update_layout(
-        title=dict(y=0.98, yanchor="top", text="Spectral diagnostic — minimal number of netting sets", font=dict(size=16)),
-        xaxis=dict(title="factor rank ℓ / number of sets K", range=[0, min(n, 25) + 0.5]),
-        yaxis=dict(title="vega-weighted variance load"),
-        yaxis2=dict(title="residual share", overlaying="y", side="right",
+        title=dict(y=0.98, yanchor="top", text="Diagnostic spectral — nombre minimal d'ensembles de netting", font=dict(size=16)),
+        xaxis=dict(title="rang du facteur ℓ / nombre d'ensembles K", range=[0, min(n, 25) + 0.5]),
+        yaxis=dict(title="charge de variance pondérée par le vega"),
+        yaxis2=dict(title="part résiduelle", overlaying="y", side="right",
                     showgrid=False, range=[0, 1.02]),
         legend=dict(orientation="h", y=1.02, yanchor="bottom"),
         height=height,
@@ -289,7 +289,7 @@ def spectral_figure(diag, height: int = 430) -> go.Figure:
 def smile_decomposition_figure(rows: list[dict], alpha: float, height: int = 430) -> go.Figure:
     tenors = [r["tenor"] for r in rows]
     fig = go.Figure()
-    fig.add_trace(go.Bar(x=tenors, y=[r["level"] for r in rows], name="level Σνₖ (nettable)",
+    fig.add_trace(go.Bar(x=tenors, y=[r["level"] for r in rows], name="niveau Σνₖ (nettable)",
                          marker_color="#3DDC97"))
     fig.add_trace(go.Bar(x=tenors, y=[r["risk_reversal"] for r in rows], name="risk-reversal Σνₖ(k−k_ATM)",
                          marker_color="#FFC857"))
@@ -297,7 +297,7 @@ def smile_decomposition_figure(rows: list[dict], alpha: float, height: int = 430
                          marker_color="#FF5C8A"))
     fig.add_trace(
         go.Scatter(
-            x=tenors, y=[r["r2_line"] for r in rows], name="per-tranche R² (stage 1)",
+            x=tenors, y=[r["r2_line"] for r in rows], name="R² par tranche (étape 1)",
             yaxis="y2", mode="lines+markers",
             line=dict(color="#5BC0EB", width=3), marker=dict(size=9),
         )
@@ -307,11 +307,11 @@ def smile_decomposition_figure(rows: list[dict], alpha: float, height: int = 430
         annotation_text="α", annotation_font_color="#5BC0EB",
     )
     fig.update_layout(
-        title=dict(y=0.98, yanchor="top", text="Smile decomposition per tranche — net level / RR / FLY (sec. 6.2, Th. 4)",
+        title=dict(y=0.98, yanchor="top", text="Décomposition du smile par tranche — niveau net / RR / FLY (sec. 6.2, Th. 4)",
                    font=dict(size=16)),
         barmode="group",
-        yaxis=dict(title="exposure (EUR / vol pt units)"),
-        yaxis2=dict(title="R² of level-collapse", overlaying="y", side="right",
+        yaxis=dict(title="exposition (EUR / pt de vol)"),
+        yaxis2=dict(title="R² de l'écrasement de niveau", overlaying="y", side="right",
                     showgrid=False, range=[min(0.0, min(r["r2_line"] for r in rows)) - 0.05, 1.02]),
         legend=dict(orientation="h", y=1.02, yanchor="bottom"),
         height=height,
@@ -329,7 +329,7 @@ def two_bucket_figure(s_i: float, s_j: float, nu_i: float, var_total: float,
     fig = go.Figure()
     fig.add_trace(
         go.Scatter(
-            x=nu_j, y=rho_min, name="ρ_min(|ν_j|) — eq. (8)",
+            x=nu_j, y=rho_min, name="ρ_min(|ν_j|) — éq. (8)",
             line=dict(color="#FFC857", width=3),
             fill="tozeroy", fillcolor="rgba(255,92,138,0.12)",
         )
@@ -338,18 +338,18 @@ def two_bucket_figure(s_i: float, s_j: float, nu_i: float, var_total: float,
     fig.add_trace(
         go.Scatter(
             x=[abs(nu_j_now)], y=[rho_now], mode="markers+text",
-            name="your pair",
+            name="votre paire",
             marker=dict(size=16, symbol="diamond",
                         color="#3DDC97" if rho_now >= np.interp(abs(nu_j_now), nu_j, rho_min) else "#FF5C8A",
                         line=dict(color="white", width=1.5)),
-            text=["pair"], textposition="top center",
+            text=["paire"], textposition="top center",
         )
     )
     fig.update_layout(
-        title=dict(y=0.98, yanchor="top", text="Two-bucket admissibility — required correlation vs netted size",
+        title=dict(y=0.98, yanchor="top", text="Admissibilité à deux buckets — corrélation requise vs taille nettée",
                    font=dict(size=16)),
-        xaxis=dict(title="|ν_j| (vega netted onto the pivot)"),
-        yaxis=dict(title="correlation ρ", range=[-1.05, 1.1]),
+        xaxis=dict(title="|ν_j| (vega netté sur le pivot)"),
+        yaxis=dict(title="corrélation ρ", range=[-1.05, 1.1]),
         legend=dict(orientation="h", y=1.02, yanchor="bottom"),
         height=height,
         **_layout(110),
@@ -365,26 +365,26 @@ def dendrogram_figure(merges: list, epsilon: float, n_applied: int, height: int 
     colors = ["#3DDC97" if m.step <= n_applied else "rgba(160,170,210,0.45)" for m in merges]
     fig = go.Figure(
         go.Bar(
-            x=steps, y=heights, name="merge height ε_r",
+            x=steps, y=heights, name="hauteur de fusion ε_r",
             marker=dict(color=colors),
-            hovertemplate="step %{x}<br>ε = %{y:.3f}<extra></extra>",
+            hovertemplate="étape %{x}<br>ε = %{y:.3f}<extra></extra>",
         )
     )
     fig.add_hline(
         y=epsilon, line=dict(color="#FFC857", dash="dash", width=2),
-        annotation_text=f"cut height ε = {epsilon:.2f}", annotation_font_color="#FFC857",
+        annotation_text=f"hauteur de coupe ε = {epsilon:.2f}", annotation_font_color="#FFC857",
     )
     if 0 < n_applied < len(merges):
         fig.add_vline(
             x=n_applied + 0.5, line=dict(color="#FF5C8A", dash="dot", width=2),
-            annotation_text="retained cut", annotation_font_color="#FF5C8A",
+            annotation_text="coupe retenue", annotation_font_color="#FF5C8A",
         )
     fig.update_layout(
         title=dict(y=0.98, yanchor="top",
-                   text="Dendrogram of the test nodes — base risk d_ij, portfolio-free (sec. 7.5)",
+                   text="Dendrogramme des nœuds de test — risque de base d_ij, sans portefeuille (sec. 7.5)",
                    font=dict(size=16)),
-        xaxis_title="merge step (increasing base risk)",
-        yaxis_title="set ε = max d(j, pivot)/s_j",
+        xaxis_title="étape de fusion (risque de base croissant)",
+        yaxis_title="ε d'ensemble = max d(j, pivot)/s_j",
         showlegend=False,
         height=height,
         **_layout(110),
@@ -406,13 +406,13 @@ def correlation_curve_figure(x_dense: np.ndarray, rho_dense: np.ndarray,
     )
     fig.add_trace(
         go.Scatter(
-            x=x_points, y=rho_points, mode="markers", name="grid points",
+            x=x_points, y=rho_points, mode="markers", name="points de la grille",
             marker=dict(size=11, color="#FFC857", line=dict(color="white", width=1)),
         )
     )
     fig.update_layout(
         title=dict(y=0.98, yanchor="top",
-                   text="Generated correlation with the ATM — the model's trace, no book",
+                   text="Corrélation générée avec l'ATM — la trace du modèle, sans book",
                    font=dict(size=16)),
         xaxis_title="moneyness x = K/F − 1",
         yaxis=dict(title="ρ(x)", range=[0, 1.05]),
