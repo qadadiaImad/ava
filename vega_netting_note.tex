@@ -1,0 +1,1046 @@
+% =====================================================================
+%  Netting des sensibilités vega sous le test de variance EBA
+%  Note méthodologique de référence — fidèle à l'implémentation
+%  (bibliothèque ebanetting + studio Streamlit "Vega Netting Studio")
+%
+%  Compilation :  pdflatex vega_netting_note.tex   (deux passes)
+%                 ou téléverser sur Overleaf (TeX Live).
+%  Dépendances : amsmath, amsthm, mathtools, algorithm2e, babel-french,
+%                booktabs, enumitem, hyperref  (toutes standard).
+% =====================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+\usepackage{geometry}
+\geometry{margin=2.4cm}
+\usepackage{float}                       % spécificateur [H] pour les algorithmes
+\usepackage[linesnumbered,ruled,vlined,french,onelanguage]{algorithm2e}
+\usepackage{booktabs}
+\usepackage{enumitem}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage[hidelinks]{hyperref}
+
+% ----- macros -----
+\newcommand{\code}[1]{\texttt{#1}}
+\DeclareMathOperator{\Var}{Var}
+\DeclareMathOperator{\Cov}{Cov}
+\DeclareMathOperator{\tr}{tr}
+\DeclareMathOperator{\Vect}{Vect}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\dsig}{\Delta\sigma}
+\newcommand{\dPi}{\Delta\Pi}
+\newcommand{\Nt}{\tilde{N}}
+\newcommand{\st}{\tilde{s}}
+\newcommand{\abs}[1]{\left| #1 \right|}
+
+% ----- environnements de théorèmes -----
+\theoremstyle{plain}
+\newtheorem{theoreme}{Théorème}[section]
+\newtheorem{proposition}[theoreme]{Proposition}
+\newtheorem{lemme}[theoreme]{Lemme}
+\newtheorem{corollaire}[theoreme]{Corollaire}
+\theoremstyle{definition}
+\newtheorem{definition}[theoreme]{Définition}
+\newtheorem{hypothese}[theoreme]{Hypothèse}
+\theoremstyle{remark}
+\newtheorem{remarque}[theoreme]{Remarque}
+\newtheorem*{impl}{Correspondance avec le code}
+
+% ----- mots-clés des algorithmes (français explicite) -----
+\SetKwInput{KwEntree}{Entrées}
+\SetKwInput{KwSortie}{Sortie}
+\SetKwInput{KwInit}{Initialisation}
+
+\title{\textbf{Netting des sensibilités vega sous le test de variance}\\[4pt]
+\large Valorisation prudente EBA --- AVA Market Price Uncertainty\\
+Règlement délégué (UE) 2016/101, art.~9(5) \& art.~89\\[6pt]
+\normalsize Note méthodologique de référence (fidèle à l'implémentation)}
+\author{\textit{Vega Netting Studio} --- bibliothèque \code{ebanetting}}
+\date{Juin 2026}
+
+\begin{document}
+\maketitle
+\begin{abstract}
+\noindent
+Cette note expose, de la réglementation à l'algorithme, le problème résolu par
+l'outil \emph{Vega Netting Studio} : déterminer à quelle granularité de la surface
+de volatilité (maturité $\times$ strike) des sensibilités vega signées peuvent être
+\emph{nettées} avant d'appliquer l'écart d'incertitude du consensus, pour le calcul
+de l'\emph{Additional Valuation Adjustment} (AVA) au titre du \emph{Market Price
+Uncertainty} (RTS EBA 2016/101). On formalise le modèle d'incertitude au premier
+ordre, le passage des sensibilités granulaires vers les nœuds de test, le netting
+comme opérateur d'agrégation, le test de variance et le plancher de conservatisme,
+puis les algorithmes : optimisation gloutonne sous budget de variance, architecture
+découplée (structure sans portefeuille / niveau par book), stress de corrélation,
+diagnostic spectral, et la méthodologie à deux couches du smile. Le fil conducteur
+est qu'\textbf{aucun produit de Kronecker / tensoriel n'est jamais assemblé} : toutes
+les variances s'évaluent en forme matricielle. Chaque résultat est accompagné de sa
+correspondance avec le module qui l'implémente.
+\end{abstract}
+
+\tableofcontents
+\bigskip\hrule\bigskip
+
+% =====================================================================
+\section{Introduction et cadre réglementaire}
+% =====================================================================
+
+\subsection{Le problème}
+Sous le Règlement délégué (UE) \textbf{2016/101} (RTS EBA sur la valorisation
+prudente), l'\emph{approche principale} impose le calcul d'\emph{AVA} par
+\emph{exposition de valorisation} à un \textbf{niveau de confiance de 90~\%}
+(art.~89). L'\textbf{AVA Market Price Uncertainty} (MPU) capture l'incertitude sur
+le prix de sortie d'une position liée à l'incertitude sur ses paramètres de marché.
+
+L'article \textbf{9(5)} et la Q\&A EBA associée autorisent le calcul de cette AVA
+sur une \textbf{exposition nettée} plutôt que sur la somme brute des incertitudes
+bucket par bucket --- \emph{à condition que l'établissement démontre que les positions
+se compensent réellement face à l'incertitude du paramètre}. Pour le vega
+(sensibilité à la volatilité implicite), la question opérationnelle est :
+\begin{quote}\itshape
+à quelle granularité de la surface de volatilité (maturité $\times$ strike) peut-on
+sommer les sensibilités signées avant d'appliquer l'écart d'incertitude du consensus,
+tout en restant démontrablement conservateur ?
+\end{quote}
+
+\subsection{Le principe de réponse}
+Le netting n'est pas accordé par défaut. La compensation doit être \emph{démontrée
+robuste} sur des agrégations \emph{partielles} et \emph{interprétables}. L'outil
+encadre donc tout schéma de netting entre deux bornes (la somme brute et la pleine
+diversification, \S\ref{sec:modele}), et n'autorise une agrégation que si elle
+passe un \textbf{test de variance} (la perte de fidélité reste sous un budget,
+\S\ref{sec:netting}) et un \textbf{plancher de conservatisme} (le niveau d'AVA ne
+descend jamais sous la pleine diversification). L'asymétrie réglementaire structure
+tout l'édifice :
+\begin{quote}\itshape
+le test protège contre la \emph{sous}-estimation de l'AVA ; refuser une compensation
+valide est permis (conservateur), conserver une compensation invalidée ne l'est pas.
+\end{quote}
+
+\subsection{Plan et invariant de calcul}
+La note suit le flux de l'outil : modèle d'incertitude (\S\ref{sec:modele}), passage
+aux nœuds de test (\S\ref{sec:passage}), netting et test de variance
+(\S\ref{sec:netting}), optimisation (\S\ref{sec:optimal}), architecture découplée
+(\S\ref{sec:decouple}), diagnostic spectral (\S\ref{sec:spectral}), méthodologie à
+deux couches (\S\ref{sec:twolayer}), audit et mise en œuvre (\S\ref{sec:audit}).
+
+\begin{remarque}[Invariant : pas de produit de Kronecker]
+La surface est discrétisée en $n = M \times K$ buckets. La covariance des chocs
+d'incertitude est une matrice $(n\times n)$, donc $(MK\times MK)$. Sous l'hypothèse
+de découplage (\S\ref{sec:decouple-hyp}), \textbf{cette matrice n'est jamais
+assemblée} : toute variance se ramène à un produit matriciel ordinaire sur la grille
+$(M,K)$ suivi d'une réduction par somme (Propriété~\ref{prop:property1}). C'est un
+choix de coût, de mémoire et d'interprétabilité.
+\end{remarque}
+
+% =====================================================================
+\section{Le modèle d'incertitude au premier ordre}\label{sec:modele}
+% =====================================================================
+
+\subsection{P\&L d'incertitude et Propriété 1}
+On note $N \in \R^{M\times K}$ la matrice des vegas par bucket,
+$N_{mk} = \partial V / \partial \sigma_{mk}$, et $\dsig \in \R^{M\times K}$ le choc
+d'incertitude \emph{mid} centré, de matrice d'écarts-types $s \in \R^{M\times K}$
+($s_{mk}>0$) et de structure de corrélation $\rho$. Le produit scalaire de Frobenius
+est $\langle A, B\rangle = \sum_{m,k} A_{mk} B_{mk}$.
+
+Au premier ordre, l'incertitude de P\&L de valorisation est
+\begin{equation}
+\dPi = \langle N, \dsig\rangle,
+\qquad
+\Var(\dPi) = \langle N, \Sigma\, N\rangle,
+\label{eq:dpi}
+\end{equation}
+où $\Sigma = D \rho D$ avec $D = \operatorname{diag}(s)$ (vectorisation implicite).
+
+\begin{proposition}[Forme matricielle de la variance --- Propriété 1]
+\label{prop:property1}
+Soit $\rho$ donnée sous \emph{forme découplée par axe}
+(Hypothèse~\ref{hyp:decouple}) : $\rho_{(m,k),(m',k')} = \rho^{\mathrm{mat}}_{mm'}\,
+\rho^{\mathrm{strike}}_{kk'}$. Alors, pour deux expositions $U,V \in \R^{M\times K}$,
+en posant $W_V = V \circ s$ (produit de Hadamard),
+\begin{equation}
+\Cov\big(\langle U,\dsig\rangle,\langle V,\dsig\rangle\big)
+= \big\langle\, U\circ s,\ \rho^{\mathrm{mat}}\,(V\circ s)\,\rho^{\mathrm{strike}}\,\big\rangle,
+\label{eq:property1}
+\end{equation}
+un \emph{sandwich} de produits matriciels usuels suivi d'une somme. En particulier
+$\Var(\langle V,\dsig\rangle) = \langle V\circ s,\ \rho^{\mathrm{mat}}(V\circ s)
+\rho^{\mathrm{strike}}\rangle$. Si une corrélation pleine $\rho^{\mathrm{full}}$
+$(n\times n)$ est fournie, on calcule directement
+$w_U^\top \rho^{\mathrm{full}} w_V$ avec $w = \mathrm{vec}(V\circ s)$.
+\end{proposition}
+
+\begin{impl}
+\code{MarketDataBundle.covariance\_of} et \code{variance\_of}
+(\code{ebanetting/datasource.py}). La forme \eqref{eq:property1} est
+\code{sum(wa * (corr\_mat @ wb @ corr\_strike))} ; le cas plein est
+\code{wa.flatten() @ corr\_full @ wb.flatten()}. \code{UncertaintyModel}
+(\code{model.py}) précalcule $\Var(\dPi)$.
+\end{impl}
+
+\subsection{Les deux extrêmes de l'AVA}
+Soit $\kappa$ le multiplicateur de quantile (sous l'hypothèse gaussienne,
+$\kappa = z_{0.90} \approx 1{,}2816$, art.~89 ; \code{KAPPA\_90} dans le code). Les
+deux régimes extrêmes bornent toute AVA :
+\begin{align}
+\text{add-up (aucun netting)} &:\quad
+\mathrm{AVA}_{\mathrm{brut}} = \kappa \sum_{m,k} \abs{N_{mk}}\, s_{mk},
+\label{eq:ava-brut}\\[2pt]
+\text{pleine diversification} &:\quad
+\mathrm{AVA}_{\mathrm{full}} = \kappa \sqrt{\Var(\dPi)}
+\;\le\; \mathrm{AVA}_{\mathrm{brut}}.
+\label{eq:ava-full}
+\end{align}
+L'écart $\eqref{eq:ava-brut}-\eqref{eq:ava-full}$ est le \textbf{bénéfice de netting
+théorique maximal}. Le \emph{budget de variance} introduit plus loin est
+\begin{equation}
+B(\alpha) = (1-\alpha)\,\Var(\dPi), \qquad \alpha \in [0{,}90\,;\,0{,}95].
+\label{eq:budget}
+\end{equation}
+
+\begin{impl}
+\code{UncertaintyModel.ava\_brut}, \code{ava\_full}, \code{budget}
+(\code{model.py}). L'inégalité \eqref{eq:ava-full} est l'inégalité de
+Cauchy--Schwarz / sous-additivité de l'écart-type.
+\end{impl}
+
+% =====================================================================
+\section{Hypothèse de découplage et données}\label{sec:decouple-hyp}
+% =====================================================================
+
+\begin{hypothese}[Découplage des corrélations par axe]\label{hyp:decouple}
+La corrélation 2-D se factorise terme à terme :
+$\rho_{(m,k),(m',k')} = \rho^{\mathrm{mat}}_{mm'}\,\rho^{\mathrm{strike}}_{kk'}$, avec
+$\rho^{\mathrm{mat}}\in\R^{M\times M}$ (corrélation entre maturités) et
+$\rho^{\mathrm{strike}}\in\R^{K\times K}$ (corrélation entre moneyness).
+\end{hypothese}
+
+Cette factorisation n'introduit que $\binom{M}{2} + \binom{K}{2}$ paramètres, chacun
+interprétable et stressable indépendamment, au lieu de $\binom{MK}{2}$. Elle est
+équivalente à une structure de Kronecker $\rho = \rho^{\mathrm{strike}} \otimes
+\rho^{\mathrm{mat}}$ sur la vectorisation, mais cette matrice n'est jamais formée :
+la Propriété~\ref{prop:property1} l'évite. Une corrélation pleine reste admise
+($\rho^{\mathrm{full}}$, prioritaire).
+
+\paragraph{Contrat de données.} L'entrée est un \code{MarketDataBundle} : libellés et
+années de maturité, niveaux de strike (en \textbf{moneyness} $K/F$), matrices $N$ et
+$s$ de taille $(M,K)$, et corrélations découplées $(\rho^{\mathrm{mat}},
+\rho^{\mathrm{strike}})$ ou pleine $\rho^{\mathrm{full}}$. La validation
+(\code{validate}) vérifie les dimensions, $s>0$, la symétrie, la diagonale unité et la
+semi-définie positivité.
+
+\begin{remarque}[Pourquoi le moneyness, et l'asymétrie sur $s$ et $\rho$]
+En strike \emph{absolu}, les points dérivent en moneyness avec le spot : la
+corrélation de l'axe strike est gonflée et le netting \textbf{sur-justifié} --- un
+biais non conservateur (note \S8). On estime donc $s,\rho$ en coordonnées $x=K/F(T)$.
+De même, $s$ est la dispersion inter-contributeurs (Totem) : avec peu de
+contributeurs il faut l'\emph{élargir}, pas le lisser ; et $\rho$ s'estime sur les
+\emph{variations} des marks de consensus, jamais sur les niveaux (la cointégration
+gonfle les corrélations de niveaux). En cas de doute, le stress de corrélation doit
+être \emph{adverse au netting}.
+\end{remarque}
+
+\begin{impl}
+\code{datasource.py} : \code{MarketDataBundle} (contrat, (dé)sérialisation JSON,
+\code{validate}), \code{nearest\_correlation} (projection sur le cône des matrices de
+corrélation valides), \code{SyntheticDataSource} (books de démonstration),
+\code{DataSource}/\code{ScenarioSource} (points de branchement bancaires).
+\end{impl}
+
+% =====================================================================
+\section{Étape 1 --- le passage aux nœuds de test}\label{sec:passage}
+% =====================================================================
+
+L'incertitude du consensus ($s,\rho$) n'est observable qu'à quelques \emph{piliers}
+(dispersions Totem, fourchettes brokers). Le vega vit sur une grille plus fine. On le
+\emph{transporte} sur la grille de piliers avant tout netting.
+
+\subsection{Matrices de passage et sandwich}
+
+\begin{definition}[Matrice de passage --- Déf. 1]\label{def:passage}
+Une matrice de passage 1-D $A \in \R^{g\times q}$ (de la grille fine $g$ vers les $q$
+piliers) a des lignes \textbf{positives sommant à un}. Trois conventions remplissent
+les lignes pour un point $t$ encadré par les piliers $p_a < t < p_b$ :
+\begin{itemize}[nosep]
+\item \emph{interp} : poids d'interpolation linéaire $A_{\cdot a}=\frac{p_b-t}{p_b-p_a}$,
+      $A_{\cdot b}=\frac{t-p_a}{p_b-p_a}$ ;
+\item \emph{equal} : $A_{\cdot a}=A_{\cdot b}=\tfrac12$ ;
+\item \emph{quadrant} : tout le poids sur le pilier le plus proche.
+\end{itemize}
+Hors de la plage des piliers, extrapolation plate (tout le poids sur le pilier extrême).
+\end{definition}
+
+\begin{definition}[Passage 2-D (sandwich) --- Déf. 2]
+Le vega projeté sur les nœuds de test est
+\begin{equation}
+\Nt = A_T^\top\, N\, A_K \;\in\; \R^{q_T\times q_K},
+\label{eq:sandwich}
+\end{equation}
+avec $A_T\in\R^{M\times q_T}$ (axe maturité) et $A_K\in\R^{K\times q_K}$ (axe strike) ---
+deux produits matriciels ordinaires, un par axe.
+\end{definition}
+
+\noindent Le vega est \emph{contracté} par \eqref{eq:sandwich} ; l'incertitude
+($s$, $\rho$) est \emph{restreinte} aux indices des piliers (sous-matrices), là où elle
+est mesurée. La conservation du vega est immédiate puisque les lignes de $A$ somment à
+un :
+\begin{equation}
+\textstyle\sum_{m,k} N_{mk} \;=\; \sum_{a,b}\Nt_{ab}
+\qquad\text{(Propriété 3, conservation du vega).}
+\label{eq:conservation}
+\end{equation}
+
+\subsection{Le théorème de cohérence passage--surface}
+
+\begin{definition}[Tracking error de passage --- éq. 5]
+Soit $B_T,B_K$ les matrices de passage \emph{interp}. Pour une convention de matrices
+$A_T,A_K$, l'erreur de représentation est $E = B_T^\top N B_K - A_T^\top N A_K$, et la
+tracking error de passage
+\begin{equation}
+\mathrm{TE}^2_{\mathrm{passage}} = \Var\big(\langle E, \dsig^{\mathrm{pil}}\rangle\big).
+\label{eq:te-passage}
+\end{equation}
+\end{definition}
+
+\begin{theoreme}[Cohérence passage--surface --- Th. 1]\label{th:passage}
+Lorsque les poids de passage coïncident avec les \emph{poids d'interpolation de la
+construction de la surface de pricing} ($A=B$), le passage ne détruit aucune
+information au premier ordre :
+\[ \mathrm{TE}^2_{\mathrm{passage}} = 0. \]
+Toute autre convention (quadrant, équipondérée) crée une erreur quantifiable
+\eqref{eq:te-passage} strictement positive en général, qui \textbf{consomme le budget
+de variance \eqref{eq:budget} avant tout netting}.
+\end{theoreme}
+
+\begin{proof}[Idée]
+Avec $A=B$, $E=0$ par construction, donc \eqref{eq:te-passage} s'annule. Sinon $E\neq0$
+et sa variance sous $\Sigma^{\mathrm{pil}}$ est positive sauf annulation accidentelle.
+La quantité de référence est $\Var(\langle B_T^\top N B_K, \dsig^{\mathrm{pil}}\rangle)$.
+\end{proof}
+
+\begin{remarque}[Les matrices de passage ne sont pas optimisées --- Rem. 3]
+$A_T,A_K$ sont \textbf{fixées} par la construction de la surface, ce ne sont pas des
+variables d'optimisation. Seule la partition en aval est optimisée. L'outil \emph{mesure}
+donc la TE de passage de chaque convention (et avertit si la convention n'est pas
+\emph{interp}) au lieu de la minimiser : une TE de passage est une perte sèche de budget,
+à documenter et déduire (note \S8).
+\end{remarque}
+
+\subsection{Grilles de chocs plus fines : restriction sans perte (\S3.5)}
+Quand les chocs sont \emph{plus fins} que les sensibilités (variations quotidiennes de
+la surface système, p.\,ex. $350\times100$ contre des piliers $10\times10$), on lit la
+surface fine aux piliers par des matrices de sélection $0/1$ :
+\begin{equation}
+\dsig^{\mathrm{pil}} = R_T\, \dsig^{\mathrm{fin}}\, R_K^\top
+\qquad\text{(Propriété 5, exact car $R\,B = I$).}
+\end{equation}
+La composante hors grille (Remarque 4)
+$\dsig^{\mathrm{fin}} - B_T(R_T \dsig^{\mathrm{fin}} R_K^\top) B_K^\top$ est mesurable
+quotidiennement : sa taille jauge l'adéquation du jeu de piliers (risque de paramètres
+de forme, à traiter à part --- ce n'est pas un défaut du passage). Grilles identiques
+$\Rightarrow$ identité.
+
+\begin{algorithm}[H]
+\caption{Passage du vega granulaire aux nœuds de test}
+\KwEntree{vega $N\in\R^{M\times K}$, indices de piliers $\mathcal{T},\mathcal{K}$,
+          convention $c$, modèle ($s,\rho$)}
+\KwSortie{bundle de nœuds $(\Nt, s^{\mathrm{pil}}, \rho^{\mathrm{pil}})$, TE de passage
+          par convention}
+\ForEach{convention $c'\in\{\mathrm{interp},\mathrm{equal},\mathrm{quadrant}\}$}{
+  construire $A_T^{(c')}, A_K^{(c')}$ par la Déf.~\ref{def:passage}\;
+}
+$\Nt \leftarrow (A_T^{(c)})^\top\, N\, A_K^{(c)}$\tcp*{sandwich, éq. \eqref{eq:sandwich}}
+restreindre $s,\rho$ aux indices $(\mathcal{T},\mathcal{K})$\;
+$N^{\mathrm{ref}} \leftarrow (A_T^{\mathrm{interp}})^\top N\, A_K^{\mathrm{interp}}$\;
+\ForEach{convention $c'$}{
+  $E \leftarrow N^{\mathrm{ref}} - (A_T^{(c')})^\top N\, A_K^{(c')}$\;
+  $\mathrm{TE}^2_{c'} \leftarrow \max\!\big(\Var(\langle E,\dsig^{\mathrm{pil}}\rangle),\,0\big)$
+  \tcp*{$=0$ pour interp (Th.~\ref{th:passage})}
+}
+\Return{nœuds et $\{\mathrm{TE}^2_{c'}\}$}\;
+\end{algorithm}
+
+\begin{impl}
+\code{passage.py} : \code{passage\_matrix} (Déf.~\ref{def:passage}), \code{project}
+(sandwich \eqref{eq:sandwich}), \code{project\_bundle} (algorithme ci-dessus,
+\code{te2\_by\_convention}, \code{conserves\_vega}), \code{restriction\_matrix},
+\code{restrict\_shocks}, \code{offgrid\_residual} (\S3.5). Onglet \emph{Passage}.
+\end{impl}
+
+% =====================================================================
+\section{Netting, test de variance et plancher}\label{sec:netting}
+% =====================================================================
+
+À partir d'ici on travaille sur la grille de nœuds (notée encore $(M,K)$ pour
+alléger, $n = MK$), avec le vega $N$ et le modèle $(\,s,\rho\,)$ restreints aux piliers.
+
+\subsection{Le netting comme opérateur d'agrégation}
+
+\begin{definition}[Schéma de netting --- Déf. 4]\label{def:netting}
+Un \emph{schéma} est une partition $\mathcal P = \{\mathcal G_1,\dots,\mathcal G_S\}$
+des nœuds (encodée par une matrice de labels entiers $(M,K)$). À chaque ensemble $r$
+on associe :
+\begin{itemize}[nosep]
+\item une \textbf{exposition nettée} $m_r = \sum_{(a,b)\in\mathcal G_r} N_{ab}$ ;
+\item une \textbf{grille de poids} $W_r\in\R^{M\times K}$, stochastique en ligne
+      ($W_r\ge 0$, support $\subseteq\mathcal G_r$, $\sum W_r = 1$), définissant un
+      \textbf{choc représentatif} $\Delta\st_r = \langle W_r, \dsig\rangle$ ;
+\item une \textbf{incertitude représentative} $\st_r = \sqrt{\Var(\langle W_r,
+      \dsig\rangle)}$ (Propriété~\ref{prop:property1}).
+\end{itemize}
+Trois pondérations : \emph{pivot} (toute la masse sur la cellule de risque dominant
+$\argmax_{(a,b)\in\mathcal G_r}\abs{N_{ab}}\,s_{ab}$), \emph{vega} (proportionnelle à
+$\abs{N}$), \emph{equal} (uniforme).
+\end{definition}
+
+Le P\&L proxy et le \textbf{résidu} (une matrice $(M,K)$) sont
+\begin{equation}
+\widehat{\dPi}_{\mathcal P} = \sum_r m_r \langle W_r,\dsig\rangle,
+\qquad
+R = N - \sum_r m_r W_r .
+\label{eq:proxy}
+\end{equation}
+L'AVA retenue est \textbf{conservatrice} (add-up entre ensembles, valeurs absolues) :
+\begin{equation}
+\mathrm{AVA}(\mathcal P) = \kappa \sum_r \abs{m_r}\, \st_r .
+\label{eq:ava-scheme}
+\end{equation}
+
+\subsection{Le test de variance et le plancher}
+
+\begin{definition}[Test de variance et score $R^2$ --- Déf. 3, éq. 6]
+La tracking error du schéma est $\mathrm{TE}^2(\mathcal P) = \Var(\langle R,
+\dsig\rangle)$. Le test de variance s'écrit
+\begin{equation}
+\mathrm{TE}^2(\mathcal P) \;\le\; (1-\alpha)\,\Var(\dPi)
+\quad\Longleftrightarrow\quad
+R^2 := 1 - \frac{\mathrm{TE}^2(\mathcal P)}{\Var(\dPi)} \;\ge\; \alpha .
+\label{eq:test}
+\end{equation}
+\end{definition}
+
+C'est l'analogue prudentiel des tests d'attribution de P\&L (FRTB) : le proxy doit
+expliquer une fraction $\alpha$ de la variance du book. Le test \eqref{eq:test}
+contrôle la \emph{fidélité} ; le \textbf{plancher de conservatisme} contrôle le
+\emph{niveau} :
+\begin{equation}
+\mathrm{AVA}(\mathcal P) \;\ge\; \kappa\sqrt{\Var(\dPi)} = \mathrm{AVA}_{\mathrm{full}}
+\qquad\text{(éq. 7).}
+\label{eq:floor}
+\end{equation}
+Un schéma est \textbf{admissible} ssi il vérifie \eqref{eq:test} et \eqref{eq:floor}.
+
+\begin{algorithm}[H]
+\caption{Évaluation d'un schéma de netting}
+\KwEntree{labels $(M,K)$, modèle $(N,s,\rho,\kappa)$, seuil $\alpha$, pondération}
+\KwSortie{$\mathrm{TE}^2$, $R^2$, $\mathrm{AVA}$, verdicts test/plancher, stats par ensemble}
+\For{chaque ensemble $r$}{
+  $m_r \leftarrow \sum_{(a,b)\in\mathcal G_r} N_{ab}$\;
+  construire $W_r$ selon la pondération (Déf.~\ref{def:netting})\;
+  $\st_r \leftarrow \sqrt{\max(\Var(\langle W_r,\dsig\rangle),0)}$\tcp*{Propriété~\ref{prop:property1}}
+}
+$R \leftarrow N - \sum_r m_r W_r$\;
+$\mathrm{TE}^2 \leftarrow \max(\Var(\langle R,\dsig\rangle),0)$\;
+$R^2 \leftarrow 1 - \mathrm{TE}^2/\Var(\dPi)$\;
+$\mathrm{AVA} \leftarrow \kappa \sum_r \abs{m_r}\,\st_r$\;
+$\text{test} \leftarrow [\mathrm{TE}^2 \le (1-\alpha)\Var(\dPi)]$ ;\quad
+$\text{plancher} \leftarrow [\mathrm{AVA} \ge \mathrm{AVA}_{\mathrm{full}}]$\;
+\Return{$\mathrm{TE}^2, R^2, \mathrm{AVA}, \text{test}, \text{plancher}$}\;
+\end{algorithm}
+
+\begin{impl}
+\code{netting.py} : \code{NettingScheme} (\code{weight\_grids},
+\code{evaluate}$\to$\code{SchemeEvaluation}), \code{SetStat}
+(dont le \emph{taux de compensation} $1-\abs{m_r}/\sum\abs{N}$). Onglets
+\emph{Netting optimal}, \emph{Labo scénarios}.
+\end{impl}
+
+\subsection{La forme fermée à deux nœuds}
+
+Le cas élémentaire éclaire toute la suite : netter le nœud $j$ sur un pivot $i$.
+
+\begin{theoreme}[Cas à deux nœuds --- Th. 2]\label{th:two}
+Pour deux nœuds de vegas $\nu_i,\nu_j$, d'incertitudes $s_i,s_j$ et de corrélation
+$\rho$, en nettant $j$ sur le pivot $i$ (choc représentatif $s_i$) :
+\begin{align}
+\textbf{(i)}\quad & \mathrm{TE}^2 = \nu_j^2\,(s_i^2 + s_j^2 - 2\rho\, s_i s_j),
+\label{eq:th2-te}\\[2pt]
+\textbf{(ii)}\quad & \text{admissible} \iff
+\rho \ge \rho_{\min} := \frac{s_i^2 + s_j^2}{2 s_i s_j}
+- \frac{(1-\alpha)\,\Var(\dPi)}{2\,\nu_j^2\, s_i s_j},
+\label{eq:th2-rhomin}\\[2pt]
+\textbf{(iii)}\quad & \text{gain d'AVA} = \kappa\big(\abs{\nu_i}s_i + \abs{\nu_j}s_j
+- \abs{\nu_i+\nu_j}\, s_i\big).
+\label{eq:th2-gain}
+\end{align}
+\end{theoreme}
+
+\begin{proof}[Idée]
+Le résidu de l'écrasement de $j$ sur $i$ est $R = \nu_j(\delta_j - \delta_i)$ en chocs,
+d'où $\Var(\langle R,\dsig\rangle) = \nu_j^2\Var(\dsig_j-\dsig_i) = \nu_j^2(s_i^2+s_j^2
+-2\rho s_i s_j)$, soit (i). \eqref{eq:test} donne (ii) en isolant $\rho$.
+Enfin l'AVA passe de $\kappa(\abs{\nu_i}s_i+\abs{\nu_j}s_j)$ à
+$\kappa\abs{\nu_i+\nu_j}s_i$, d'où (iii).
+\end{proof}
+
+\begin{remarque}[Lecture économique]
+$\eqref{eq:th2-rhomin}$ dit que netter exige une \emph{corrélation élevée} \textbf{et}
+des \emph{incertitudes homogènes} : des points de smile adjacents se nettent, un ATM
+1M contre une aile 10Y non. Surtout, plus le vega netté $\abs{\nu_j}$ est grand
+relativement au risque total, plus le seuil $\rho_{\min}$ est exigeant : \textbf{on ne
+cache pas un gros short derrière un proxy approximatif}. Les fusions de même signe
+sont admissibles mais inutiles --- le netting vise des ensembles de signes opposés
+fortement corrélés.
+\end{remarque}
+
+\begin{impl}
+\code{netting.py} : \code{two\_bucket}. Onglet \emph{Labo scénarios} (bac à sable +
+frontière $\rho_{\min}(\abs{\nu_j})$).
+\end{impl}
+
+% =====================================================================
+\section{Netting optimal sous budget de variance}\label{sec:optimal}
+% =====================================================================
+
+\subsection{Le problème et sa restriction}
+Le problème optimal s'écrit
+\begin{equation}
+\mathcal P^\star = \argmin_{\mathcal P}\ \kappa \sum_r \abs{m_r}\,\st_r
+\quad\text{s.c.}\quad
+\mathrm{TE}^2(\mathcal P) \le (1-\alpha)\Var(\dPi)\ \text{et}\ \eqref{eq:floor}.
+\label{eq:opt}
+\end{equation}
+L'espace des partitions a la taille des \emph{nombres de Bell} : \eqref{eq:opt} est
+NP-difficile. On le restreint aux \textbf{pavages rectangulaires contigus} de la
+grille : chaque ensemble est un rectangle $[r_0,r_1]\times[c_0,c_1]$, et l'on ne
+fusionne que deux rectangles \emph{adjacents dont l'union est un rectangle}. Ce choix
+est doublement motivé : les rectangles sont interprétables et documentables au titre de
+l'art.~9(5) (« maturités 1M--3M $\times$ strikes 0{,}9--1{,}1 »), et il réduit
+drastiquement la combinatoire.
+
+\subsection{Le glouton agglomératif (\S7.3)}
+On part des singletons ($\mathrm{TE}^2=0$). À chaque étape on évalue toutes les
+fusions admissibles (union rectangulaire, $\mathrm{TE}^2$ restant sous le budget) et on
+retient la meilleure selon l'\textbf{objectif} choisi :
+\begin{itemize}[nosep]
+\item objectif \emph{AVA} (défaut) : d'abord les fusions à \emph{coût nul}
+      ($\text{coût}\le\varepsilon$, $\text{gain}\ge0$), puis celles maximisant
+      $\text{gain}/\text{coût}$, où $\text{gain} = \mathrm{AVA}$ avant $-$ après
+      (réduction d'AVA) et $\text{coût} = \mathrm{TE}^2$ après $-$ avant ;
+\item objectif \emph{TE seule} (optionnel) : on classe par coût croissant
+      ($-\text{coût}$, les moins chères d'abord), \emph{sans} pondérer par l'AVA ---
+      utile pour répondre « quelle est la maille la plus grossière justifiable par la
+      seule fidélité ? ». La partition obtenue n'est pas garantie optimale en AVA.
+\end{itemize}
+Enfin (\textbf{étape 3}) on vérifie le plancher \eqref{eq:floor} : tant qu'il est
+violé, on défait la dernière fusion (\emph{roll-back}).
+
+\begin{algorithm}[H]
+\caption{Glouton agglomératif sous budget (objectifs AVA / TE) + roll-back du plancher}
+\KwEntree{modèle $(N,s,\rho,\kappa)$, seuil $\alpha$, pondération, objectif
+          $o\in\{\text{ava},\text{te}\}$}
+\KwSortie{partition $\mathcal P$, évaluation, historique des fusions, nb de roll-backs}
+\KwInit{rectangles $\leftarrow$ singletons ; $\mathit{ev}\leftarrow$ évaluer ;
+        $B \leftarrow (1-\alpha)\Var(\dPi)$ ; $\varepsilon \leftarrow 10^{-12}\max(\Var(\dPi),1)$}
+\While{$\abs{\text{rectangles}} > 1$}{
+  $\text{meilleur} \leftarrow \varnothing$\;
+  \For{chaque paire $(i,j)$ de rectangles fusionnables}{
+    $\mathit{ev}' \leftarrow$ évaluer la partition d'essai\;
+    $\text{gain} \leftarrow \mathit{ev}.\mathrm{AVA} - \mathit{ev}'.\mathrm{AVA}$ ;\quad
+    $\text{coût} \leftarrow \mathit{ev}'.\mathrm{TE}^2 - \mathit{ev}.\mathrm{TE}^2$\;
+    \If{$\mathit{ev}'.\mathrm{TE}^2 > B$}{\textbf{continuer}\tcp*{hors budget}}
+    \uIf{$o = \text{te}$}{$\text{cand} \leftarrow (\text{niveau }0,\ -\text{coût})$}
+    \uElseIf{$\text{coût}\le\varepsilon$ \textbf{et} $\text{gain}\ge0$}{
+      $\text{cand} \leftarrow (\text{niveau }1,\ \text{gain})$\tcp*{coût nul prioritaire}}
+    \uElseIf{$\text{gain}>0$ \textbf{et} $\text{coût}>\varepsilon$}{
+      $\text{cand} \leftarrow (\text{niveau }0,\ \text{gain}/\text{coût})$}
+    \Else{\textbf{continuer}}
+    \lIf{$\text{cand} > \text{meilleur}$}{$\text{meilleur}\leftarrow\text{cand}$}
+  }
+  \lIf{$\text{meilleur} = \varnothing$}{\textbf{arrêter}}
+  appliquer la fusion ; $\mathit{ev}\leftarrow\mathit{ev}'$ ; journaliser\;
+}
+\While{plancher \eqref{eq:floor} violé \textbf{et} historique non vide}{
+  retirer la dernière fusion ; rejouer ; incrémenter le compteur de roll-back\;
+}
+\Return{$\mathcal P, \mathit{ev}, \text{historique}, \text{roll-backs}$}\;
+\end{algorithm}
+
+\begin{remarque}[Pourquoi cet ordre de priorité]
+Les fusions \emph{gratuites} (compensation parfaite, variance résiduelle nulle) sont
+prises d'abord. Ensuite, l'objectif AVA achète la réduction d'AVA la plus efficace par
+unité de budget de variance dépensé --- un ratio coût/bénéfice prudentiel. L'objectif
+TE seule retient au contraire des fusions presque gratuites en fidélité même sans gain
+d'AVA (vegas de même signe), maximisant l'agrégation sous le budget.
+\end{remarque}
+
+\subsection{Stress de corrélation et netting robuste (\S7.3, étape 4)}
+Une fusion n'est défendable en revue de modèle que si elle survit à un stress
+\emph{adverse au netting}. Le stress abaisse les corrélations hors diagonale,
+\begin{equation}
+\rho \;\longmapsto\; \max(\rho - \delta,\,-1),\qquad \delta \sim 0{,}1\text{--}0{,}2,
+\label{eq:stress}
+\end{equation}
+suivi d'une reprojection sur le cône des corrélations valides. Le \textbf{netting
+robuste} rejoue le glouton sous le modèle de base et sous chaque $\Sigma$ stressé, puis
+prend le \textbf{raffinement commun} : deux buckets ne restent ensemble que s'ils le
+sont dans \emph{tous} les régimes. Le schéma retenu est réévalué sous le modèle de base.
+
+\begin{algorithm}[H]
+\caption{Netting robuste --- raffinement commun sous stress de corrélation}
+\KwEntree{bundle, $\alpha$, $\kappa$, amplitudes $\{\delta_1,\dots,\delta_p\}$, objectif}
+\KwSortie{schéma robuste, évaluation, runs par régime}
+$\text{runs}[0] \leftarrow$ glouton(modèle de base)\;
+\For{chaque $\delta$}{$\text{runs}[\delta] \leftarrow$ glouton(modèle stressé par \eqref{eq:stress})}
+empiler les labels de tous les runs\;
+deux buckets ensemble $\iff$ ensemble dans \emph{tous} les runs\tcp*{raffinement commun}
+$\mathcal P_{\text{rob}} \leftarrow$ partition résultante\;
+\Return{$\mathcal P_{\text{rob}}$, évaluer$(\mathcal P_{\text{rob}},$ modèle de base$)$, runs}\;
+\end{algorithm}
+
+\begin{impl}
+\code{optimizer.py} : \code{greedy\_netting}/\code{\_greedy} (objectif
+\code{"ava"}/\code{"te"}), \code{\_replay} (roll-back), \code{stress\_bundle}
+\eqref{eq:stress}, \code{robust\_netting} (raffinement commun). Pavages :
+\code{Rect}, \code{\_mergeable}, \code{\_union}. Onglet \emph{Netting optimal}
+(toggles objectif et mode robuste).
+\end{impl}
+
+% =====================================================================
+\section{Architecture découplée : structure $\perp$ niveau}\label{sec:decouple}
+% =====================================================================
+
+Le glouton de \S\ref{sec:optimal} mêle un \emph{objectif} (l'AVA, qui dépend du book,
+de $s$ et de $\kappa$) à une \emph{contrainte} (le coût en variance, qui ne dépend que
+de $\Sigma$). La \S7.5 les sépare en deux runs : la structure est \emph{lente et
+justifiée}, le niveau \emph{rapide et par book}. Une partition qui \emph{bouge avec le
+book} est en soi un signal d'alerte en validation.
+
+\subsection{Run 1 --- le dendrogramme sans portefeuille}
+
+\begin{definition}[Distance de risque de base --- Th. 2 (i)]
+La distance entre deux nœuds est l'écart-type de leur désaccord de choc :
+\begin{equation}
+d_{ij} = \sqrt{\Var(\dsig_i - \dsig_j)} = \sqrt{s_i^2 + s_j^2 - 2\rho_{ij}\,s_i s_j},
+\label{eq:base-risk}
+\end{equation}
+avec $\rho_{ij} = \rho^{\mathrm{mat}}_{aa'}\rho^{\mathrm{strike}}_{bb'}$ (découplage) ou
+$\rho^{\mathrm{full}}_{ij}$. C'est exactement la racine du coût du Théorème~\ref{th:two}
+(i) : fusionner $j$ sur le pivot $i$ coûte $\mathrm{TE}^2 = \nu_j^2\, d_{ij}^2$.
+\end{definition}
+
+On agglomère les nœuds (rectangles contigus) par \emph{risque de base croissant}. Le
+critère de fusion est le $\varepsilon$ de la Propriété~\ref{prop:prop8} : pour un
+ensemble de cellules, le meilleur pivot minimise $\max_j d_{j,\text{pivot}}/s_j$, et
+$\varepsilon$ de l'ensemble est ce minimum. Le dendrogramme \textbf{ne dépend que de
+$\Sigma$, jamais du book}.
+
+\begin{proposition}[Borne portfolio-free --- Prop. 8]\label{prop:prop8}
+Si chaque nœud $j$ d'un ensemble vérifie $d_{j,\text{pivot}} \le \varepsilon\, s_j$,
+alors pour \textbf{n'importe quel} book
+\begin{equation}
+\mathrm{TE} \;\le\; \varepsilon \sum_j \abs{\nu_j}\, s_j
+\;=\; \varepsilon\, \frac{\mathrm{AVA}_{\mathrm{brut}}}{\kappa}.
+\label{eq:prop8}
+\end{equation}
+\end{proposition}
+
+\begin{proof}[Idée]
+Le résidu d'un ensemble écrasé sur son pivot est $\sum_j \nu_j(\dsig_j -
+\dsig_{\text{pivot}})$. L'inégalité triangulaire sur l'écart-type donne
+$\mathrm{TE} \le \sum_j \abs{\nu_j}\, d_{j,\text{pivot}} \le \varepsilon\sum_j
+\abs{\nu_j} s_j$, puis on somme sur les ensembles.
+\end{proof}
+
+\begin{algorithm}[H]
+\caption{Run 1 --- construction du dendrogramme (sans portefeuille)}
+\KwEntree{bundle $(s,\rho)$}
+\KwSortie{arbre de fusions $\{(\text{rect}_a,\text{rect}_b,\text{hauteur }\varepsilon)\}$}
+calculer la matrice de distances $d$ \eqref{eq:base-risk}\;
+rectangles $\leftarrow$ singletons\;
+\While{$\abs{\text{rectangles}} > 1$}{
+  \For{chaque paire fusionnable $(i,j)$}{
+    $U \leftarrow$ union ; $\varepsilon_U \leftarrow \min_{p\in U}\max_{c\in U}
+       d_{c,p}/s_c$\tcp*{critère Prop.~\ref{prop:prop8}}
+  }
+  fusionner la paire de plus petit $\varepsilon_U$ ; journaliser (hauteur $=\varepsilon_U$)\;
+}
+\Return{arbre}\;
+\end{algorithm}
+
+\subsection{Run 2 --- le niveau par book et le contrôle obligatoire}
+Une \emph{coupe} de l'arbre à la hauteur $\varepsilon$ donne une partition. On
+l'évalue avec le book du jour, le choc représentatif de chaque ensemble étant son
+\textbf{pivot de structure} (issu du Run 1, indépendant du book), $\st_r = s$ au pivot.
+Le contrôle obligatoire est le test \eqref{eq:test} ; s'il échoue (ou le plancher), on
+\emph{abaisse la coupe} (on défait des fusions) pour ce book. On reporte la borne
+Prop.~8 réalisée $\varepsilon_{\text{réel}}\sum\abs{\nu}s$.
+
+\begin{algorithm}[H]
+\caption{Run 2 --- coupe et évaluation par book, avec abaissement}
+\KwEntree{bundle, $\alpha$, $\kappa$, hauteur $\varepsilon$, dendrogramme}
+\KwSortie{labels, évaluation, $\varepsilon_{\text{réel}}$, borne Prop.~8, nb d'abaissements}
+$n \leftarrow$ nombre de fusions de hauteur $\le \varepsilon$\;
+\Repeat{$(\text{test et plancher})$ \textbf{ou} $n=0$}{
+  labels $\leftarrow$ appliquer les $n$ premières fusions\;
+  pivots $\leftarrow$ pivots de structure des ensembles\;
+  $\mathit{ev} \leftarrow$ évaluer (résidu $=N-\sum_r m_r\,\mathbf 1_{\text{pivot}_r}$)\;
+  \lIf{$\neg(\text{test} \wedge \text{plancher})$}{$n \leftarrow n-1$ ; abaissements${+}{+}$}
+}
+$\varepsilon_{\text{réel}} \leftarrow \max_r \varepsilon_r$ ;\quad
+borne $\leftarrow \varepsilon_{\text{réel}}\sum\abs{\nu}s$\;
+\Return{labels, $\mathit{ev}$, $\varepsilon_{\text{réel}}$, borne, abaissements}\;
+\end{algorithm}
+
+\subsection{Stabilité entre familles de chocs (\S7.4)}
+Un même formalisme, plusieurs covariances : $\Sigma^{\mathrm{totem}}$ (niveau d'AVA +
+test officiel), $\Sigma^{\mathrm{bid\text{-}ask}}$, $\Sigma^{\mathrm{daily}}$
+(variations quotidiennes restreintes aux piliers via la Prop.~5 --- l'estimateur de
+$\rho$ le plus dense, \textbf{pas} un niveau prudentiel). On rejoue le test de variance
+de la \emph{même} partition sous chaque covariance ; toute fusion qui échoue dans un
+régime est \emph{instable} et défaite. Le plancher n'a de sens que sous la covariance
+de base.
+
+\begin{algorithm}[H]
+\caption{Coupe stable --- survie sous toutes les covariances}
+\KwEntree{bundle de base, alternatives $\{\Sigma^{(g)}\}$, $\alpha$, $\kappa$, $\varepsilon$, dendrogramme}
+\KwSortie{coupe stable, rapport par régime, nb de fusions défaites}
+$n \leftarrow$ nombre de fusions de hauteur $\le \varepsilon$\;
+\Repeat{$(\text{ok})$ \textbf{ou} $n=0$}{
+  labels $\leftarrow$ coupe à $n$ fusions (pivots de la structure de base)\;
+  rapport $\leftarrow$ test de variance sous \emph{chaque} régime\;
+  ok $\leftarrow$ (test passé dans \emph{tous} les régimes) \textbf{et} (plancher sous la base)\;
+  \lIf{$\neg$ ok}{$n \leftarrow n-1$ ; défaites${+}{+}$}
+}
+\Return{labels, rapport, défaites}\;
+\end{algorithm}
+
+\begin{remarque}[Asymétrie réglementaire, à nouveau]
+Refuser une fusion valide est permis ; conserver une fusion invalidée par un régime ne
+l'est pas. L'abaissement de coupe (Run 2) et la coupe stable (\S7.4) sont deux
+incarnations de ce principe.
+\end{remarque}
+
+\begin{impl}
+\code{clustering.py} : \code{base\_risk\_distance} \eqref{eq:base-risk},
+\code{build\_dendrogram} (Run 1), \code{cut\_pivots}/\code{evaluate\_cut},
+\code{decoupled\_netting} (Run 2, \code{te\_bound}, \code{lowered}),
+\code{stability\_report}/\code{stable\_cut} (\S7.4). Onglet
+\emph{Structure \& Stabilité}.
+\end{impl}
+
+% =====================================================================
+\section{Diagnostic spectral et décomposition du smile}\label{sec:spectral}
+% =====================================================================
+
+\subsection{Facteurs de la covariance (\S6.1)}
+La covariance aux nœuds $\Sigma = D\rho D$ (assemblée terme à terme, petite matrice
+$q\times q$) se diagonalise dans une base orthonormée (théorème spectral) :
+$\Sigma = \sum_\ell \lambda_\ell\, u_\ell u_\ell^\top$, $\lambda_1\ge\cdots\ge\lambda_q\ge0$.
+
+\begin{proposition}[Facteurs et carte de risque --- Prop. 6 et 7]\label{prop:spectral}
+Les \emph{facteurs} $\xi_\ell = u_\ell^\top \dsig$ sont décorrélés, de variances
+$\lambda_\ell$, et $\sum_\ell \lambda_\ell = \tr(\Sigma) = \sum_i s_i^2$. En posant
+$c_\ell = \langle \nu, u_\ell\rangle$ (projection du vega),
+\begin{equation}
+\dPi = \sum_\ell c_\ell\, \xi_\ell,
+\qquad
+\Var(\dPi) = \sum_\ell c_\ell^2\, \lambda_\ell .
+\label{eq:spectral-var}
+\end{equation}
+La suite $\{c_\ell^2\lambda_\ell\}$ est la \textbf{carte de risque} du book : elle dit
+\emph{où} est le risque, mode par mode.
+\end{proposition}
+
+\begin{theoreme}[Plancher spectral --- Th. 3]\label{th:spectral}
+Pour tout schéma dont les chocs représentatifs vivent dans
+$\Vect(u_1,\dots,u_L)$ --- la description réaliste des schémas grossiers à poids
+lisses ---
+\begin{equation}
+\mathrm{TE}^2 \;\ge\; \sum_{\ell>L} c_\ell^2\,\lambda_\ell .
+\label{eq:spectral-floor}
+\end{equation}
+La variance de \emph{queue} du book est incompressible. On définit le \textbf{nombre
+minimal de facteurs} (ou d'ensembles) compatible avec le test :
+\begin{equation}
+K^\star(\alpha) = \min\Big\{ L :\ \textstyle\sum_{\ell>L} c_\ell^2\lambda_\ell
+\le (1-\alpha)\Var(\dPi) \Big\}.
+\label{eq:kstar}
+\end{equation}
+\end{theoreme}
+
+\begin{remarque}[L'hypothèse est nécessaire ; la limite]
+Sans l'hypothèse de sous-espace, aucun plancher n'existe : avec $w=\nu$ un seul
+ensemble réplique $\dPi$ exactement (Rem. 5). Surtout, \textbf{un facteur n'est pas un
+ensemble de netting} : ses poids signés denses ne sont pas une exposition de
+valorisation documentable. \emph{Le spectre mesure, la partition nette.}
+\end{remarque}
+
+L'inertie $\tau_L = \sum_{\ell\le L}\lambda_\ell / \sum_\ell\lambda_\ell$ (compressibilité
+de l'incertitude, U1) ; deux usages complémentaires : \textbf{U3} le \emph{nettoyage
+spectral} d'un $\hat\Sigma$ bruité (aplatir la queue des valeurs propres à sa moyenne
+en préservant la trace, donc $\sum s_i^2$ ; avec garde-fou de conservatisme) ;
+\textbf{U4} la \emph{stabilité des sous-espaces dominants} entre fenêtres (cosinus des
+angles principaux $\to 1$).
+
+\begin{algorithm}[H]
+\caption{Diagnostic spectral et $K^\star(\alpha)$}
+\KwEntree{modèle $(N,s,\rho,\kappa)$, seuil $\alpha$}
+\KwSortie{$\{\lambda_\ell\}$, carte de risque $\{c_\ell^2\lambda_\ell\}$, courbe de
+          plancher, inertie, $K^\star$}
+$\Sigma \leftarrow D\rho D$ ; diagonaliser $(\lambda_\ell, u_\ell)$ par ordre décroissant\;
+$c_\ell \leftarrow \langle \nu, u_\ell\rangle$ ;\quad $g_\ell \leftarrow c_\ell^2\lambda_\ell$\;
+\For{$L = 0,\dots,q$}{$\text{plancher}[L] \leftarrow \sum_{\ell>L} g_\ell$ ;\quad
+   $\tau_L \leftarrow \sum_{\ell\le L}\lambda_\ell/\sum\lambda_\ell$}
+$K^\star \leftarrow \min\{L : \text{plancher}[L] \le (1-\alpha)\Var(\dPi)\}$\;
+\Return{$\lambda, g, \text{plancher}, \tau, K^\star$}\;
+\end{algorithm}
+
+\subsection{Décomposition du smile par tranche (\S6.2)}
+Par maturité (tranche $a$), dans la base $\{1, x, x^2\}$ avec $x = K/F - 1$, on lit les
+\emph{coordonnées du book} dans la base standard des stratégies de smile :
+\begin{equation}
+\underbrace{m_a = \textstyle\sum_k \nu_k}_{\text{niveau}},\quad
+\underbrace{\mathrm{RR}_a = \textstyle\sum_k \nu_k x_k}_{\text{risk-reversal}},\quad
+\underbrace{\mathrm{FLY}_a = \textstyle\sum_k \nu_k x_k^2}_{\text{butterfly}}.
+\end{equation}
+
+\begin{theoreme}[Résidu d'écrasement du smile --- Th. 4]\label{th:smile}
+Le niveau net $m_a$ se nette \emph{parfaitement quelle que soit sa taille} ; tout le
+résidu de l'écrasement de la tranche sur son pivot ATM est porté par $\mathrm{RR}_a$ et
+$\mathrm{FLY}_a$. Le go/no-go par tranche est en forme fermée : avec $\Sigma_a = D_a
+\rho^{\mathrm{strike}} D_a$ et $e = \nu - m_a\,\mathbf 1_{\text{ATM}}$,
+\[ \mathrm{TE}^2_a = e^\top \Sigma_a\, e, \qquad
+   R^2_a = 1 - \mathrm{TE}^2_a / (\nu^\top \Sigma_a \nu). \]
+\end{theoreme}
+
+Les tranches dont $R^2_a < \alpha$ portent un RR/FLY net matériel : leur forme de smile
+doit rester en \emph{add-up} (étape 1 du netting hiérarchique) ; les niveaux des
+tranches qui passent poursuivent vers le netting de structure par terme sous
+$\rho^{\mathrm{mat}}$.
+
+\begin{impl}
+\code{spectral.py} : \code{node\_covariance}, \code{spectral\_diagnostic}
+(\eqref{eq:spectral-var}--\eqref{eq:kstar}), \code{spectral\_clean} (U3),
+\code{subspace\_stability} (U4). \code{scenario.py} : \code{smile\_decomposition}
+(Th.~\ref{th:smile}). Onglet \emph{Spectral \& Smile}.
+\end{impl}
+
+% =====================================================================
+\section{Méthodologie à deux couches du smile}\label{sec:twolayer}
+% =====================================================================
+
+Principe organisateur : le \emph{désaccord} entre points de volatilité est une
+propriété du \textbf{sous-jacent} (il ignore le book), tandis que les agrégats RR/FLY
+sont la projection du \textbf{book} sur cette structure. D'où deux couches.
+
+\subsection{Couche 1 --- le sous-jacent (sans book)}
+
+\begin{definition}[Modèle de déformation --- Déf. 1]\label{def:smile}
+Le choc d'une tranche se décompose en trois modes communs plus un bruit propre :
+\begin{equation}
+\dsig_j = \dsig_{\mathrm{niv}} + x_j\,\Delta S + x_j^2\,\Delta C + \varepsilon_j,
+\end{equation}
+d'écarts-types $(s_0, \sigma_S, \sigma_C)$ pour le niveau / la pente (skew) / la
+courbure, et $\sigma_\varepsilon$ pour l'idiosyncratique indépendant. L'incertitude
+ponctuelle est
+$s_x = \sqrt{s_0^2 + x^2\sigma_S^2 + x^4\sigma_C^2 + \sigma_\varepsilon^2}$.
+\end{definition}
+
+Le modèle s'estime par régression transversale quotidienne des chocs par strike sur
+$[1, x, x^2]$ (les coefficients donnent $(s_0,\sigma_S,\sigma_C)$, le résidu
+$\sigma_\varepsilon$, et le $R^2$ poolé la validité).
+
+\begin{theoreme}[Risque de base d'une paire --- Th. 1 (couche 1)]\label{th:tl1}
+Le désaccord généré entre deux points est
+\begin{equation}
+d_{ij}^2 = (x_j-x_i)^2\,\sigma_S^2 + (x_j-x_i)^2(x_j+x_i)^2\,\sigma_C^2
++ 2\sigma_\varepsilon^2 .
+\label{eq:tl-dist}
+\end{equation}
+C'est l'\emph{écart} $\abs{x_j-x_i}$ qui compte (pas la distance à l'ATM) ; le facteur
+$(x_i+x_j)^2$ amplifie la courbure dans les ailes ; l'idio est un plancher
+$d^2 \ge 2\sigma_\varepsilon^2$.
+\end{theoreme}
+
+\begin{proposition}[Corrélation générée --- Prop. 2]
+La corrélation de chaque point avec l'ATM n'est pas primitive : le modèle la fabrique,
+$\rho(x) = s_0 / s_x$.
+\end{proposition}
+
+On construit un \emph{dendrogramme de tranche} : groupes de strikes contigus par
+désaccord pivot-à-pivot croissant \eqref{eq:tl-dist}, le pivot d'un groupe étant son
+point le plus liquide (plus petit $s$). C'est la \textbf{carte des fusions possibles},
+indépendante du book.
+
+\subsection{Couche 2 --- le book (résidu exact)}
+Pour un groupe de pivot $p$, on définit le niveau net et les agrégats signés relatifs au
+pivot :
+\[ m = \textstyle\sum_j \nu_j,\quad
+   \mathrm{RR}_p = \textstyle\sum_j \nu_j (x_j - x_p),\quad
+   \mathrm{FLY}_p = \textstyle\sum_j \nu_j (x_j^2 - x_p^2). \]
+
+\begin{theoreme}[Résidu de groupe exact --- Th. 2 (couche 2)]\label{th:tl2}
+La variance du résidu de l'écrasement du groupe sur son pivot est, \emph{sans
+inégalité},
+\begin{equation}
+\Var(R) = \mathrm{RR}_p^2\,\sigma_S^2 + \mathrm{FLY}_p^2\,\sigma_C^2
++ \sigma_\varepsilon^2\Big(\textstyle\sum_{j\neq p}\nu_j^2
++ \big(\sum_{j\neq p}\nu_j\big)^2\Big).
+\label{eq:tl-exact}
+\end{equation}
+Les modes communs entrent par des sommes \emph{signées} (compensation possible) ;
+l'idio par des \emph{carrés} (jamais de compensation : le plancher incompressible).
+\end{theoreme}
+
+\begin{proposition}[Pivot barycentre --- \S6.3]\label{prop:bary}
+Comme $\mathrm{RR}_p = \mathrm{RR}_0 - m\,x_p$, le pivot $x_p = \mathrm{RR}_0/m =
+(\sum_j \nu_j x_j)/m$ --- le barycentre de vega --- annule $\mathrm{RR}_p$ exactement :
+le terme de pente disparaît par choix de représentation.
+\end{proposition}
+
+\begin{remarque}[Exact contre majorant : autoriser ce que la couche 1 refusait]
+Le majorant de couche 1 est $\sum_{j\neq p}\abs{\nu_j}\, d_{j,p}$ (inégalité
+triangulaire) : la barre \emph{dans} la somme efface les signes, donc il \textbf{compte
+deux fois ce qui s'annule}. Le calcul exact \eqref{eq:tl-exact} peut donc autoriser une
+fusion que le majorant refusait --- jamais l'inverse.
+\end{remarque}
+
+\paragraph{Décisions, jamais tout-ou-rien (N1--N4).} Les groupes d'une tranche
+partagent $\Delta S, \Delta C$ : les coefficients RR/FLF sont \emph{sommés entre groupes
+écrasés avant} d'être élevés au carré (la TE globale n'est pas la somme des variances de
+groupe). On part tout en \emph{collapse} sur le pivot barycentre ; tant que la TE
+globale dépasse le budget, on \emph{extrait} le pire groupe (son $m$ reste netté,
+RR/FLY provisionnés en \emph{add-up} avec $s_{\text{skew}}, s_{\text{fly}}$) ; si l'idio
+seul déborde, on \emph{scinde}.
+
+\begin{algorithm}[H]
+\caption{Couche 2 --- décisions book (N1--N4) sur la structure de couche 1}
+\KwEntree{groupes (couche 1), vegas $\nu$, abscisses $x$, modèle de smile, $\alpha$, $\kappa$}
+\KwSortie{décisions par groupe, $\mathrm{TE}^2$ exacte, AVA, verdicts}
+\KwInit{tous les groupes en \emph{collapse} sur leur pivot barycentre (Prop.~\ref{prop:bary})}
+$B \leftarrow (1-\alpha)\Var(\dPi)$\tcp*{$\Var(\dPi)$ de la tranche sous le modèle}
+\While{$\mathrm{TE}^2_{\text{globale}} > B$ \textbf{et} des groupes collapsés ont RR/FLY $\neq 0$}{
+  extraire le groupe de plus grande $\Var(R)$\tcp*{$m$ netté, RR/FLY en add-up}
+}
+\While{$\mathrm{TE}^2_{\text{globale}} > B$ \textbf{et} un groupe a $>1$ point}{
+  scinder en deux le pire groupe (chaque moitié reprend son pivot barycentre)\;
+}
+$\mathrm{AVA} \leftarrow \sum_{\text{groupes}} \kappa\big(\abs{m}\,s_{\text{pivot}}
+   + [\text{extrait}]\,(\abs{\mathrm{RR}}s_{\text{skew}} + \abs{\mathrm{FLY}}s_{\text{fly}})\big)$\;
+\Return{décisions, $\mathrm{TE}^2_{\text{globale}}$, AVA, test/plancher}\;
+\end{algorithm}
+
+\begin{impl}
+\code{twolayer.py} : \code{SmileModel}, \code{fit\_smile\_model}, \code{model\_distance}
+(Th.~\ref{th:tl1}), \code{generated\_correlation} (Prop. 2),
+\code{tranche\_dendrogram}/\code{cut\_tranche}, \code{group\_projections},
+\code{barycenter\_pivot} (Prop.~\ref{prop:bary}), \code{group\_residual\_variance}
+(Th.~\ref{th:tl2}), \code{majorant\_residual\_sd}, \code{book\_variance},
+\code{evaluate\_book} (N1--N4). Onglet \emph{Deux couches}.
+\end{impl}
+
+% =====================================================================
+\section{Audit art.~9(5) et mise en œuvre IPV}\label{sec:audit}
+% =====================================================================
+
+\subsection{Dossier de preuve}
+Le RTS exige une preuve \emph{documentée} que les expositions nettées se compensent
+réellement face à l'incertitude. L'outil assemble, par date de calcul, un dossier JSON
+contenant : la partition retenue, les paramètres $(\alpha,\kappa,$ pondération$)$, le
+test de variance ($\mathrm{TE}^2$, budget, $R^2$ réalisé, verdict), le plancher, la
+décomposition d'AVA, les statistiques par ensemble, les résultats de stress et la trace
+gloutonne. Chaque dossier porte une \textbf{empreinte SHA-256} du bundle d'entrée trié :
+elle lie le résultat aux données exactes (reproductibilité, détection d'altération).
+
+\begin{impl}
+\code{reporting.py} : \code{build\_audit\_pack}, \code{\_bundle\_fingerprint},
+\code{audit\_json}. Onglet \emph{Audit \& Export}.
+\end{impl}
+
+\subsection{Points de mise en œuvre (\S8 de la note)}
+\begin{itemize}[nosep,leftmargin=1.2em]
+\item \textbf{$s$} : dispersion inter-contributeurs Totem (écart-type ou intervalles
+  interquantiles remis à l'échelle 90~\%) ; peu de contributeurs $\Rightarrow$ gonfler
+  $s$, pas le lisser.
+\item \textbf{$\rho$} : estimer sur les \emph{variations} des marks de consensus, jamais
+  sur les niveaux ; historique court $\Rightarrow$ croiser avec $\Sigma^{\mathrm{daily}}$
+  (Prop.~5) et retenir le \emph{moins favorable au netting} ; shrinkage recommandé.
+\item \textbf{Asymétrie réglementaire} : le test protège contre la \emph{sous}-estimation
+  --- en cas de doute, le stress de corrélation doit être adverse au netting.
+\item \textbf{Documentation} : conserver \{partition, $R^2$ réalisé, frontière, stress\}
+  par date (preuve art.~9(5)).
+\item \textbf{Non-linéarité} : \eqref{eq:dpi} est au premier ordre ; pour des books à
+  volga/vanna matériels (cliquets, barrières), valider que les termes de second ordre ne
+  réordonnent pas les ensembles --- sinon netter sur scénarios complets plutôt que sur
+  sensibilités.
+\end{itemize}
+
+% =====================================================================
+\appendix
+\section{Correspondance théorie $\leftrightarrow$ code $\leftrightarrow$ onglet}
+% =====================================================================
+
+\begin{center}\small
+\begin{tabular}{@{}p{4.5cm}p{5.2cm}p{4.6cm}@{}}
+\toprule
+\textbf{Théorie (\S)} & \textbf{Module / fonction} & \textbf{Onglet} \\
+\midrule
+Modèle, Propriété~\ref{prop:property1}, AVA \eqref{eq:ava-brut}--\eqref{eq:ava-full}
+  & \code{model.py}, \code{datasource.py} & Données de marché \\
+Passage \eqref{eq:sandwich}, Th.~\ref{th:passage}, \S3.5
+  & \code{passage.py} & Passage \\
+Netting Déf.~\ref{def:netting}, test \eqref{eq:test}, plancher \eqref{eq:floor}
+  & \code{netting.py} & Netting optimal / Labo \\
+Th.~\ref{th:two} (deux nœuds)
+  & \code{netting.py:two\_bucket} & Labo scénarios \\
+Glouton \eqref{eq:opt}, stress \eqref{eq:stress}, robuste
+  & \code{optimizer.py} & Netting optimal \\
+Distance \eqref{eq:base-risk}, Prop.~\ref{prop:prop8}, Runs 1/2, \S7.4
+  & \code{clustering.py} & Structure \& Stabilité \\
+Facteurs Prop.~\ref{prop:spectral}, Th.~\ref{th:spectral}, $K^\star$ \eqref{eq:kstar}
+  & \code{spectral.py} & Spectral \& Smile \\
+Décomposition smile Th.~\ref{th:smile}
+  & \code{scenario.py:smile\_decomposition} & Spectral \& Smile \\
+Deux couches Déf.~\ref{def:smile}, Th.~\ref{th:tl1}--\ref{th:tl2}, N1--N4
+  & \code{twolayer.py} & Deux couches \\
+Dossier art.~9(5)
+  & \code{reporting.py} & Audit \& Export \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Notations}
+\begin{center}\small
+\begin{tabular}{@{}ll@{}}
+\toprule
+$N,\ \nu$ & matrice $(M,K)$ et vegas par bucket ($\partial V/\partial\sigma$) \\
+$\dsig,\ s,\ \rho$ & choc d'incertitude, écarts-types, corrélations \\
+$\Sigma = D\rho D$ & covariance des chocs ($D=\operatorname{diag}(s)$) \\
+$\kappa,\ \alpha$ & multiplicateur de quantile ($\approx1{,}2816$), seuil du test \\
+$\Nt = A_T^\top N A_K$ & vega projeté ; $A_T,A_K$ matrices de passage \\
+$\mathcal P,\ m_r,\ W_r,\ \st_r$ & partition, exposition nettée, poids, incertitude repr. \\
+$\mathrm{TE}^2,\ R^2$ & tracking error et score de variance \\
+$d_{ij},\ \varepsilon$ & risque de base \eqref{eq:base-risk}, hauteur de coupe \\
+$\lambda_\ell, u_\ell, c_\ell$ & valeurs/vecteurs propres de $\Sigma$, projections du vega \\
+$\mathrm{RR},\ \mathrm{FLY}$ & risk-reversal et butterfly nets (smile) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\bigskip\noindent\hrulefill\par
+\footnotesize
+\noindent\emph{Note de référence du \emph{Vega Netting Studio}. Données de
+démonstration synthétiques ; ceci n'est ni un conseil en investissement ni une position
+réglementaire. Compilation : \code{pdflatex vega\_netting\_note.tex} (deux passes) ou
+Overleaf.}
+
+\end{document}
