@@ -12,6 +12,7 @@ Run with:  streamlit run app.py
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -237,13 +238,35 @@ model = UncertaintyModel(bundle=bundle, kappa=float(kappa))
 bundle_json = bundle.to_json(sort_keys=True)
 
 # --------------------------------------------------------------------------- #
+# Per-tab documentation (rendered in the Documentation tab)
+# --------------------------------------------------------------------------- #
+DOC_DIR = Path(__file__).parent / "docs"
+DOC_PAGES = {
+    "🏛️ Théorie": "readme_theorie.md",
+    "📊 Données de marché": "readme_donnees_marche.md",
+    "🔁 Passage": "readme_passage.md",
+    "🧠 Netting optimal": "readme_netting_optimal.md",
+    "🌳 Structure & Stabilité": "readme_structure_stabilite.md",
+    "🧬 Deux couches": "readme_deux_couches.md",
+    "🎯 Labo scénarios": "readme_labo_scenarios.md",
+    "🔬 Spectral & Smile": "readme_spectral_smile.md",
+    "📋 Audit & Export": "readme_audit_export.md",
+}
+
+
+@st.cache_data(show_spinner=False)
+def load_doc(filename: str) -> str:
+    return (DOC_DIR / filename).read_text(encoding="utf-8")
+
+
+# --------------------------------------------------------------------------- #
 # Tabs
 # --------------------------------------------------------------------------- #
 (tab_theory, tab_data, tab_passage, tab_optimal, tab_structure, tab_twolayer,
- tab_scenario, tab_spectral, tab_audit) = st.tabs(
+ tab_scenario, tab_spectral, tab_audit, tab_docs) = st.tabs(
     ["🏛️ Théorie", "📊 Données de marché", "🔁 Passage", "🧠 Netting optimal",
      "🌳 Structure & Stabilité", "🧬 Deux couches", "🎯 Labo scénarios",
-     "🔬 Spectral & Smile", "📋 Audit & Export"]
+     "🔬 Spectral & Smile", "📋 Audit & Export", "📖 Documentation"]
 )
 
 # =========================================================================== #
@@ -1284,6 +1307,34 @@ with tab_audit:
         with a2:
             st.metric("Empreinte de l'entrée (SHA-256)", pack["input"]["fingerprint_sha256"])
         st.json(pack, expanded=2)
+
+# =========================================================================== #
+# DOCUMENTATION
+# =========================================================================== #
+with tab_docs:
+    st.markdown("## 📖 Documentation des onglets")
+    st.caption(
+        "Une fiche par onglet : ce qui tourne à l'intérieur (UI → moteur → flux de "
+        "données) et la raison réglementaire et mathématique derrière chaque calcul. "
+        "Les fiches sources sont les fichiers `docs/readme_*.md` du dépôt."
+    )
+    dc1, dc2 = st.columns([2, 1])
+    with dc1:
+        doc_choice = st.selectbox("Onglet à documenter", list(DOC_PAGES), index=0)
+    try:
+        doc_text = load_doc(DOC_PAGES[doc_choice])
+    except OSError as exc:
+        st.error(f"Fiche introuvable : {DOC_PAGES[doc_choice]} ({exc}).")
+    else:
+        with dc2:
+            st.download_button(
+                "⬇️ Télécharger cette fiche (Markdown)",
+                data=doc_text,
+                file_name=DOC_PAGES[doc_choice],
+                mime="text/markdown",
+            )
+        st.divider()
+        st.markdown(doc_text)
 
 st.markdown(
     "<div style='text-align:center; color:#5b6694; padding-top: 24px;'>"

@@ -136,6 +136,25 @@ python -m pytest tests/ -q
   butterfly decomposition (Théorème 4) with per-tranche tests.
 - **📋 Audit & Export** — the art. 9(5) evidence pack: retained partition, realised R²,
   frontier, stress table, greedy trace, SHA-256 input fingerprint — one JSON download.
+- **📖 Documentation** — one fiche per tab (French), rendered in-app from
+  [`docs/readme_*.md`](docs/): what runs inside each tab (UI → engine → data flow) and
+  the regulatory + mathematical reason behind every computation.
+
+## Per-tab documentation (`docs/`)
+
+Each tab has a standalone French README under [`docs/`](docs/) — purpose, what runs
+inside (engine functions, data flow, with `file:line` references), the reasoning
+(art. 9(5) / art. 89 + the theorems), and how to read the outputs:
+[théorie](docs/readme_theorie.md) ·
+[données de marché](docs/readme_donnees_marche.md) ·
+[passage](docs/readme_passage.md) ·
+[netting optimal](docs/readme_netting_optimal.md) ·
+[structure & stabilité](docs/readme_structure_stabilite.md) ·
+[deux couches](docs/readme_deux_couches.md) ·
+[labo scénarios](docs/readme_labo_scenarios.md) ·
+[spectral & smile](docs/readme_spectral_smile.md) ·
+[audit & export](docs/readme_audit_export.md).
+The **📖 Documentation** tab renders these same files inside the app.
 
 ## Plugging your data (the open pipe)
 
