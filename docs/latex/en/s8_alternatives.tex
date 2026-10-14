@@ -1,0 +1,50 @@
+\section{Where B-splines, Gaussian mixtures and neural networks fit}\label{sec-alternatives}
+
+\subsection{What B-spline coefficients cannot see}
+\begin{proposition}[Leverage of a spike]\label{prop-leverage}
+Let $B\in\R^{K\times q}$ be the B-spline design matrix at the pillars and $H=B(B^\top B)^{-1}B^\top$ the hat matrix. The
+least-squares fit of a unit spike $e_k$ has energy $\|He_k\|^2=h_{kk}$, and $\sum_kh_{kk}=q$. A fraction $1-h_{kk}$ of the
+spike's energy stays in the residual and is invisible to any feature computed from the coefficients.
+\end{proposition}
+\begin{proof}
+$H$ is symmetric and idempotent, so $\|He_k\|^2=e_k^\top H^\top He_k=e_k^\top He_k=h_{kk}$, and
+$\sum_kh_{kk}=\operatorname{tr}H=\rank B=q$. The coefficients $(B^\top B)^{-1}B^\top e_k$ determine $He_k$ and nothing else.
+\end{proof}
+
+\begin{example}
+For the six cubic B-splines (knots in $\ln T$) of the benchmark and the eleven pillars,
+\begin{center}\input{generated/\lang/tab_leverage}\end{center}
+At the interior pillars between nine months and four years the coefficients capture only \vLevMin{} to \vLevMax{} of a
+spike's energy (on average $6/11\approx\num{0.545}$ over all pillars). The spline also spreads what it captures over
+several coefficients. A one-pillar anomaly, the most common bad-curve pattern, is therefore diluted before any
+clustering starts.
+\end{example}
+
+\subsection{Why a mixture on the difference flags FO mismarks}
+\begin{proposition}\label{prop-gmm-fo}
+Let the features be the spline coefficients $c=B^+\Delta b$ of the repo difference. A parallel FO repo shift $\delta$
+moves them by $-\delta\,B^+\one$, a fixed direction. If the mixture is fitted on clean history, where FO and Totem agree
+up to noise, its density decreases along that direction, so its alarm rate on FO mismarks tends to one as $|\delta|$
+grows, whatever the quality of the Totem curve.
+\end{proposition}
+\begin{proof}
+$c$ is linear in $\Delta b$, and $\Delta b$ moves by $-\delta\one$. Each Gaussian component has a finite variance along
+$B^+\one$, so the mixture density, and hence the likelihood score, goes to zero along that direction.
+\end{proof}
+The structural detector has no such problem: $T\cdot\one$ lies in the span of the null model, so a level difference is
+projected out of every test and reported through $\hat\beta_0$. The benchmark confirms both statements: \vFoGmmDiff{} of
+FO mismarks are flagged by the mixture on the difference, \vFoStruct{} by the structural detector.
+
+\subsection{Where they help}
+\begin{itemize}
+\item \textbf{P-splines in the null model.} If $\beta_0+\beta_1\ln T$ proves too rigid on real data, a penalised spline
+\cite{eilers1996} can replace it as the smooth part of the null model; the tests of \cref{sec-detection} are unchanged.
+\item \textbf{Mixtures on structured outputs.} A Gaussian mixture on the detector's outputs ($\hat\beta_0$, $\hat\beta_1$, the
+$z_t$, $Q$ and the dispersion ratios) learns the usual regimes per region and category in a low-dimensional space where each coordinate means something.
+\item \textbf{Region $\times$ category} is best used to group the calibration of $\kappa$ and of the level scale, not as
+clusters.
+\item \textbf{Neural networks.} By \cref{prop-nn}, on the mechanisms we can name a network can at best learn the
+matched filter. Networks earn their place once there is a labelled incident history and patterns the templates do not
+cover; they should then be trained on residuals of the structural model and on synthetic injections, not on raw
+curves.
+\end{itemize}

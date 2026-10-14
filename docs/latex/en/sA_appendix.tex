@@ -1,0 +1,89 @@
+\section{Notation}\label{app-notation}
+\begin{center}\small
+\begin{tabular}{lp{12cm}}
+\toprule
+Symbol & Meaning\\
+\midrule
+$S$, $r$, $R=rt$ & spot, zero rate, cumulative rate\\
+$b$, $B=bt$ & zero repo, cumulative repo (carry)\\
+$G=e^{R-B}$ & carry growth factor\\
+$t_i$, $d_i$, $\tilde d_i=d_i/G(t_i)$ & ex-dates, cash dividends, carry-discounted dividends\\
+$D(T)$ & carry-discounted cumulative dividend, \cref{eq-forward}\\
+$T_k$, $k=1..K$ & Totem expiries (pillars)\\
+$L_y$, $\pi_i$, $A_{ky}$ & dividend level of period $y$, profile weights, allocation matrix\\
+$\Aset$, $\Bset$, $n_A$, $n_B$, $m$ & option and dividend panels, their sizes, contributors common to both\\
+$\bA$, $\DA$, $\DB$ & option-panel average repo and dividend views; dividend-panel consensus\\
+$y_k$ & carry difference Totem minus FO, \cref{eq-y}\\
+$X=[T,T\ln T]$, $\beta$ & null model (smooth repo difference) and its coefficients\\
+$\Sigma$, $\kappa$ & consensus-noise covariance, variance scale\\
+$t$, $\tb$, $z_t$, $Q$ & template, its whitened projection, matched-filter statistic, global chi-square\\
+$s_b$, $s_D$, $J$, $g$ & FO sensitivities to repo and dividends, implied-repo Jacobian, non-forward exposure\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Additional proofs and remarks}\label{app-proofs}
+
+\begin{lemma}[Heterogeneous discounting]
+If contributor $j$ discounts with $DF_j$, the zero crossing of $\overline{C}-\overline{P}$ is
+$K^\ast=\sum_jDF_jF_j/\sum_jDF_j$, a discount-weighted mean of the contributors' forwards. Its difference from the plain
+mean is $\Cov(DF_j,F_j)/\overline{DF}$, of second order.
+\end{lemma}
+\begin{proof}
+$\overline{C}-\overline{P}=\frac1n\sum_jDF_j(F_j-K)$ vanishes at $K^\ast$. Then
+$K^\ast-\overline F=\bigl(\overline{DF\,F}-\overline{DF}\,\overline F\bigr)/\overline{DF}$.
+\end{proof}
+
+\begin{lemma}[Exact signal-to-noise in a paired design]
+If a scenario adds an effect $\eta$ to the carry difference of a name and leaves its consensus noise unchanged (same
+seed), then $y^{\text{scenario}}-y^{\text{clean}}=\eta$ and the signal-to-noise $\|PL^{-1}\eta\|$ of \cref{cor-power} is
+known exactly, without noise. For a single template ($\eta=a\,t$) it equals $|a|\,\|\tb\|$.
+\end{lemma}
+\begin{proof}
+The noise cancels in the difference; for $\eta=at$, $PL^{-1}\eta=a\tb$.
+\end{proof}
+
+\begin{lemma}[Student calibration of the FO-mismark test]
+Let $\hat\beta_0\sim\N(\beta_0,c\,\sigma^2)$ and let $\hat\sigma^2$ be an independent estimate with
+$\nu\hat\sigma^2/\sigma^2\sim\chi^2_\nu$. Then $(\hat\beta_0-\beta_0)/\sqrt{c\hat\sigma^2}\sim t_\nu$.
+\end{lemma}
+\begin{proof}
+Definition of the Student distribution: a standard normal divided by the square root of an independent $\chi^2_\nu/\nu$.
+\end{proof}
+With dispersions estimated from $n_A$ contributors, $\nu\approx n_A-1$ at the short end, where the repo-level
+uncertainty is read; the level scale $s$ then corrects what this approximation misses.
+
+\begin{remark}[Multi-pillar second-order term]
+\Cref{prop-second} extends pillar by pillar: for $V=\Phi(F_1,\dots,F_K)$ with expiries on pillars, the dependence of the
+first-order total on the dividend panel is $-\sum_k\partial_k\Phi\,F_k\bigl[\tfrac12T_k^2\Delta b_k^2+T_k\Delta b_k\Delta D_k/(S-D_k)\bigr]$
+plus the cross terms created by the interpolation of carry between pillars, all of second order.
+\end{remark}
+
+\section{Synthetic market specification}\label{app-synthetic}
+\begin{itemize}
+\item \textbf{Dividends.} EU stocks: annual dividend between 20 April and 30 May (35\% of names also pay a November
+interim of 40\%); US stocks: quarterly; hard-to-borrow: annual or quarterly; EU index: monthly stream with weights
+$(1,2,4,14,24,18,6,4,3,4,3,2)$ by calendar month. Yield and growth drawn per name in the ranges of the category table.
+\item \textbf{Repo.} $b(T)=b_\infty+(b_0-b_\infty)e^{-T/\tau}$ with $b_0$, $b_\infty$, $\tau$ drawn per name.
+\item \textbf{Contributor dividend views.} $d_{ij}=d_i\bigl(1+\sigma(t_i)[0.7\,z_j+\sqrt{1-0.7^2}\,e_{ij}]\bigr)$ with
+$\sigma(t)$ affine in $t$ (category-specific), $z_j$ persistent, $e_{ij}$ idiosyncratic; announced dividends (before
+$0.15$ year) have one tenth of the dispersion.
+\item \textbf{Contributor repo views.} $b_j(T)=b(T)+\sigma_b\bigl(u_j+0.6\,v_j\,\tau(T)\bigr)$, with $\tau(T)$ a tilt
+linear in $\ln T$ from $-0.5$ to $0.5$; $\sigma_b$ is $15$, $10$, $60$ and $8$\,bp for the four categories.
+\item \textbf{Options.} Strikes $80$--$120\%$ of spot; volatility with a term structure and a skew of $-0.10$ per unit of
+log-moneyness, contributor volatility noise of one point, price noise $2\times10^{-5}$ of spot.
+\item \textbf{Consensus.} Mean over the panel after removing quotes more than four scaled median absolute deviations
+from the median.
+\item \textbf{FO.} Dividends with $1\%$ noise, repo with a $3$\,bp level error; spot equal to the Totem reference spot.
+\end{itemize}
+
+\section{Reproducibility}\label{app-repro}
+All numbers, tables and figures of this note are generated by the repository:
+\begin{center}\small
+\begin{tabular}{l}
+\code{pip install -e .[benchmark,report,dev]}\\
+\code{pytest}\\
+\code{python scripts/run\_benchmark.py} \quad (about \vRuntime{} minutes)\\
+\code{PYTHONPATH=. python scripts/build\_latex.py}
+\end{tabular}
+\end{center}

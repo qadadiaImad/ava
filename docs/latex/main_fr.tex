@@ -1,0 +1,108 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+\frenchsetup{SmallCapsFigTabCaptions=false}
+\addto\captionsfrench{\renewcommand{\tablename}{Tableau}}
+\usepackage[locale=FR]{siunitx}
+\newcommand{\pct}[1]{\num{#1}\,\%}
+\newcommand{\NTheorem}{Théorème}
+\newcommand{\NProposition}{Proposition}
+\newcommand{\NLemma}{Lemme}
+\newcommand{\NCorollary}{Corollaire}
+\newcommand{\NDefinition}{Définition}
+\newcommand{\NAssumption}{Hypothèse}
+\newcommand{\NExample}{Exemple}
+\newcommand{\NRemark}{Remarque}
+\newcommand{\NInsight}{À retenir}
+\newcommand{\NCaveat}{Mise en garde}
+\newcommand{\shorttitle}{Repo implicite Totem : théorie, contrôle et détection}
+\newcommand{\draftname}{Document de travail}
+\newcommand{\lang}{fr}
+\input{preamble}
+\usepackage[colorlinks=true,linkcolor=accent,citecolor=accent,urlcolor=accent]{hyperref}
+\usepackage[nameinlink,capitalise,french]{cleveref}
+\input{theorems}
+\crefname{theorem}{théorème}{théorèmes}
+\Crefname{theorem}{Théorème}{Théorèmes}
+\crefname{proposition}{proposition}{propositions}
+\Crefname{proposition}{Proposition}{Propositions}
+\crefname{lemma}{lemme}{lemmes}
+\Crefname{lemma}{Lemme}{Lemmes}
+\crefname{corollary}{corollaire}{corollaires}
+\Crefname{corollary}{Corollaire}{Corollaires}
+\crefname{definition}{définition}{définitions}
+\Crefname{definition}{Définition}{Définitions}
+\crefname{assumption}{hypothèse}{hypothèses}
+\Crefname{assumption}{Hypothèse}{Hypothèses}
+\crefname{example}{exemple}{exemples}
+\Crefname{example}{Exemple}{Exemples}
+\crefname{remark}{remarque}{remarques}
+\Crefname{remark}{Remarque}{Remarques}
+\crefname{algorithm}{algorithme}{algorithmes}
+\Crefname{algorithm}{Algorithme}{Algorithmes}
+\crefname{section}{section}{sections}
+\Crefname{section}{Section}{Sections}
+\crefname{appendix}{annexe}{annexes}
+\Crefname{appendix}{Annexe}{Annexes}
+\crefname{figure}{figure}{figures}
+\Crefname{figure}{Figure}{Figures}
+\crefname{table}{tableau}{tableaux}
+\Crefname{table}{Tableau}{Tableaux}
+\crefname{equation}{équation}{équations}
+\Crefname{equation}{Équation}{Équations}
+\floatname{algorithm}{Algorithme}
+\algrenewcommand\algorithmicrequire{\textbf{Entrées :}}
+\algrenewcommand\algorithmicensure{\textbf{Sorties :}}
+\algrenewcommand\algorithmicfor{\textbf{pour}}
+\algrenewcommand\algorithmicdo{\textbf{faire}}
+\algrenewcommand\algorithmicif{\textbf{si}}
+\algrenewcommand\algorithmicthen{\textbf{alors}}
+\algrenewcommand\algorithmicelse{\textbf{sinon}}
+\algrenewcommand\algorithmicrepeat{\textbf{répéter}}
+\algrenewcommand\algorithmicuntil{\textbf{jusqu'à}}
+\algrenewcommand\algorithmicreturn{\textbf{renvoyer}}
+\input{generated/fr/values}
+
+\title{\textbf{Repo implicite Totem}\\[4pt]\large Théorie, contrôle indépendant des dividendes et détection des courbes
+aberrantes\\[2pt]\normalsize Note technique avec démonstrations, exemples détaillés et banc d'essai synthétique}
+\author{Contrôle indépendant des prix -- Dérivés actions}
+\date{14 octobre 2026 \quad\textbullet\quad Document de travail}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+\noindent Les paramètres de repo utilisés pour le contrôle indépendant des prix sont implicités de Totem : les
+forwards à partir des prix de consensus des calls et des puts, les dividendes à partir du service dividendes de Totem,
+distinct. Comme ces deux services sont alimentés par des panels de contributeurs différents dont la taille varie avec
+la maturité, la courbe de repo implicite hérite du bruit et des artefacts des deux, et présente parfois des formes que
+le marché ne justifie pas. Cette note donne (i)~une décomposition exacte du repo implicite en repo du panel options
+plus un \emph{écart de panel}, avec le bruit, les sauts et les biais que chaque mécanisme produit ; (ii)~un théorème de
+non-identifiabilité qui établit qu'aucune méthode fondée sur les seules données de consensus ne peut supprimer cet
+écart ; (iii)~une identité de contrôle qui démontre que la somme des lignes de contrôle dividende et repo ne dépend
+pas du panel dividendes pour une exposition linéaire en forward, accompagnée d'une mesure de matérialité calculée à
+partir des seules sensibilités ; (iv)~un détecteur structurel fondé sur des filtres adaptés et un test du rapport de
+vraisemblance généralisé, calibré sur un historique sain, qui nomme le mécanisme à l'origine de chaque alerte et
+répare la courbe ; (v)~un banc d'essai sur un marché Totem synthétique construit contributeur par contributeur,
+qui le compare à des contrôles naïfs et à un regroupement par mélange gaussien de coefficients B-spline. Chaque
+résultat est démontré, illustré par un exemple chiffré et vérifié dans le package Python qui accompagne la note.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\input{fr/s1_introduction}
+\input{fr/s2_model}
+\input{fr/s3_anatomy}
+\input{fr/s4_control}
+\input{fr/s5_noise}
+\input{fr/s6_detection}
+\input{fr/s7_benchmark}
+\input{fr/s8_alternatives}
+\input{fr/s9_operations}
+\appendix
+\input{fr/sA_appendix}
+\input{fr/references}
+\end{document}

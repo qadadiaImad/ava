@@ -1,0 +1,60 @@
+\section{Introduction}\label{sec-intro}
+
+\subsection{Context}
+An independent price verification (IPV) function controls the parameters that front office (FO) uses to value
+and risk-manage equity derivatives. For repo, the reference is not observed directly. It is \emph{implied}: Totem
+publishes consensus prices of calls and puts, from which forwards are extracted by put--call parity, and a
+separate Totem service publishes consensus dividends. The repo curve that reconciles the two is then compared with
+FO's repo marks, and the differences are multiplied by FO sensitivities to produce control lines (variances,
+reserves, prudent-valuation adjustments).
+
+Two features of Totem make this delicate. The option service and the dividend service are fed by different
+contributors, and within each service the number of contributors changes with tenor; a typical single stock might
+have fifteen contributors at one year on options and ten on dividends, fewer beyond two years. The implied repo
+mixes the two consensus means, and so inherits the noise of both and the artefacts of their mismatch. Controllers
+see this as irregular shapes and unjustified jumps in implied repo curves.
+
+\subsection{Questions answered}
+This note answers four questions:
+\begin{enumerate}[label=(\alph*)]
+\item \textbf{Where do irregular implied repo curves come from?} \Cref{sec-anatomy} decomposes the implied repo
+exactly into the option panel's repo plus a panel gap, and derives the signature of each mechanism (panel gap,
+contributor drop-off, ex-date timing, stale ex-date profile, dividend bucket error, spot snapshot, gross/net
+definition).
+\item \textbf{Can a better statistical method recover the ``true'' repo?} No: \cref{thm-nonid} shows that
+consensus data cannot identify the split between repo and dividends of the option panel.
+\item \textbf{Do we need a clean Totem repo curve to control repo?} For forward-linear exposure, no:
+\cref{thm-control,thm-exact} prove that the total of the dividend and repo lines does not depend on the dividend
+panel, and \cref{prop-materiality} measures, from sensitivities alone, how much the split matters for a given book.
+\item \textbf{How should bad curves be detected?} \Cref{sec-noise,sec-detection} build a structural detector:
+a noise model computed from Totem's own statistics, one matched-filter template per mechanism, a calibrated
+false-alarm rate and an explanation in natural units for each alarm. \Cref{sec-benchmark} benchmarks it, and
+\cref{sec-alternatives} explains where B-spline coefficients, Gaussian mixtures and small neural networks fit.
+\end{enumerate}
+
+\subsection{Main results at a glance}
+\begin{insight}
+\begin{itemize}[leftmargin=12pt]
+\item To first order, $b_{\text{implied}} = \bA + (\DA - \DB)/\bigl(T(S-D)\bigr)$ (\cref{prop-gap}). The gap alone
+gives \vGapOneY\,bp of repo noise at one year and \vGapFiveY\,bp at five years for a typical single stock.
+\item The mechanisms have distinct signatures in \emph{carry space} $B=b\,T$: a constant (spot), a step (dividend
+amount, panel change), a spike (forward outlier, ex-date timing), a seasonal pattern (allocation profile).
+\item For forward-linear books, the full-revaluation Totem P\&L is \emph{exactly} independent of the dividend panel
+when expiries sit on Totem pillars (\cref{thm-exact}); the line decomposition reproduces this to first order
+(\cref{thm-control}). The dividend panel only matters through the non-forward exposure $g = s_D + s_b J$.
+\item The detector's test statistics are exact matched filters (\cref{thm-glrt}). One variance scale per category,
+calibrated on clean history, sets the false-alarm rate exactly (\cref{prop-kappa}).
+\item In the benchmark (\vNTest{} synthetic test names, every detector at \vFPR{} false alarms), the structural
+detector and a Gaussian mixture on B-spline coefficients of the Totem--FO difference detect a similar share of
+anomalies on average (\vMeanStruct{} and \vMeanGmmDiff). The structural detector also finds forward
+outliers (\vFwdStruct{} against at most \vFwdShape), explains \vAttr{} of its alarms correctly, and does not mistake
+genuine FO mismarks for bad Totem curves (\vFoStruct{} against \vFoGmmDiff).
+\end{itemize}
+\end{insight}
+
+\subsection{Reading guide}
+\Cref{sec-model} fixes notation and proves the elementary facts the rest relies on (bootstrap, parity,
+allocation). \Cref{sec-anatomy} is the diagnosis; \cref{sec-control} the control identity; \cref{sec-noise,sec-detection}
+the detector; \cref{sec-benchmark} the evidence; \cref{sec-alternatives} the comparison with other approaches;
+\cref{sec-ops} the implementation. Proofs follow each statement; longer derivations are in \cref{app-proofs}.
+Every numerical example is produced by the code in the repository (\cref{app-repro}).

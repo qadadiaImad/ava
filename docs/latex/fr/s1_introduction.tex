@@ -1,0 +1,67 @@
+\section{Introduction}\label{sec-intro}
+
+\subsection{Contexte}
+Une fonction de contrôle indépendant des prix (IPV) contrôle les paramètres que le front office (FO) utilise pour
+valoriser et gérer le risque des dérivés actions. Pour le repo, la référence n'est pas observée directement. Elle est
+\emph{implicitée} : Totem publie des prix de consensus de calls et de puts, dont on extrait les forwards par la
+parité call--put, et un service Totem distinct publie des dividendes de consensus. La courbe de repo qui réconcilie
+les deux est ensuite comparée aux repos marqués par le FO, et les écarts sont multipliés par les sensibilités FO pour
+produire des lignes de contrôle (écarts de valorisation, provisions, ajustements de valorisation prudente).
+
+Deux caractéristiques de Totem rendent l'exercice délicat. Le service options et le service dividendes sont alimentés
+par des contributeurs différents, et dans chaque service le nombre de contributeurs varie avec la maturité ; une action
+typique peut compter quinze contributeurs à un an sur les options et dix sur les dividendes, moins au-delà de deux ans.
+Le repo implicite mélange les deux moyennes de consensus : il hérite donc du bruit des deux et des artefacts de leur
+décalage. Les contrôleurs le constatent sous forme de courbes de repo implicite irrégulières et de sauts injustifiés.
+
+\subsection{Questions traitées}
+Cette note répond à quatre questions :
+\begin{enumerate}[label=(\alph*)]
+\item \textbf{D'où viennent les courbes de repo implicite irrégulières ?} La \cref{sec-anatomy} décompose exactement
+le repo implicite en repo du panel options plus un écart de panel, et établit la signature de chaque mécanisme
+(écart de panel, sortie de contributeurs, date de détachement, profil de détachement périmé, erreur sur une période de
+dividendes, décalage du spot, définition brute/nette).
+\item \textbf{Une meilleure méthode statistique peut-elle retrouver le « vrai » repo ?} Non : le \cref{thm-nonid}
+montre que les données de consensus ne permettent pas d'identifier la répartition entre repo et dividendes du panel
+options.
+\item \textbf{Faut-il une courbe de repo Totem propre pour contrôler le repo ?} Pour une exposition linéaire en
+forward, non : les \cref{thm-control,thm-exact} démontrent que la somme des lignes dividende et repo ne dépend pas
+du panel dividendes, et la \cref{prop-materiality} mesure, à partir des seules sensibilités, l'importance de la
+répartition pour un portefeuille donné.
+\item \textbf{Comment détecter les courbes aberrantes ?} Les \cref{sec-noise,sec-detection} construisent un
+détecteur structurel : un modèle de bruit calculé à partir des propres statistiques de Totem, un gabarit de filtre
+adapté par mécanisme, un taux de fausses alertes calibré et une explication en unités naturelles pour chaque alerte.
+La \cref{sec-benchmark} le teste, et la \cref{sec-alternatives} explique la place des coefficients B-spline, des
+mélanges gaussiens et des petits réseaux de neurones.
+\end{enumerate}
+
+\subsection{Principaux résultats}
+\begin{insight}
+\begin{itemize}[leftmargin=12pt]
+\item Au premier ordre, $b_{\text{implicite}}=\bA+(\DA-\DB)/\bigl(T(S-D)\bigr)$ (\cref{prop-gap}). L'écart seul
+produit \vGapOneY\,pb de bruit de repo à un an et \vGapFiveY\,pb à cinq ans pour une action typique.
+\item Les mécanismes ont des signatures distinctes dans l'\emph{espace de portage} $B=b\,T$ : une constante (spot),
+une marche (montant de dividende, changement de panel), un pic (forward aberrant, date de détachement), un motif
+saisonnier (profil d'allocation).
+\item Pour un portefeuille linéaire en forward, le P\&L Totem en réévaluation complète est \emph{exactement}
+indépendant du panel dividendes lorsque les échéances sont des piliers Totem (\cref{thm-exact}) ; la décomposition en
+lignes le reproduit au premier ordre (\cref{thm-control}). Le panel dividendes n'intervient qu'à travers
+l'exposition non-forward $g=s_D+s_bJ$.
+\item Les statistiques de test du détecteur sont des filtres adaptés exacts (\cref{thm-glrt}). Une seule échelle de
+variance par catégorie, calibrée sur un historique sain, fixe exactement le taux de fausses alertes (\cref{prop-kappa}).
+\item Sur le banc d'essai (\vNTest{} sous-jacents synthétiques de test, chaque détecteur à \vFPR{} de fausses
+alertes), le détecteur structurel et un mélange gaussien sur les coefficients B-spline de l'écart Totem--FO détectent
+en moyenne une part comparable des anomalies (\vMeanStruct{} et \vMeanGmmDiff). Le détecteur structurel trouve en
+outre les forwards aberrants (\vFwdStruct{} contre au plus \vFwdShape), explique correctement \vAttr{} de ses alertes
+et ne confond pas une véritable erreur de marquage FO avec une courbe Totem aberrante (\vFoStruct{} contre
+\vFoGmmDiff).
+\end{itemize}
+\end{insight}
+
+\subsection{Guide de lecture}
+La \cref{sec-model} fixe les notations et démontre les résultats élémentaires sur lesquels repose la suite
+(bootstrap, parité, allocation). La \cref{sec-anatomy} pose le diagnostic ; la \cref{sec-control} établit l'identité
+de contrôle ; les \cref{sec-noise,sec-detection} construisent le détecteur ; la \cref{sec-benchmark} apporte les
+éléments empiriques ; la \cref{sec-alternatives} compare avec d'autres approches ; la \cref{sec-ops} décrit la mise en
+œuvre. Les démonstrations suivent chaque énoncé ; les calculs plus longs figurent en \cref{app-proofs}. Chaque exemple
+chiffré est produit par le code du dépôt (\cref{app-repro}).

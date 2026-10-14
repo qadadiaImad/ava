@@ -1,0 +1,216 @@
+\section{Detection: matched filters and the likelihood-ratio test}\label{sec-detection}
+
+\subsection{Templates}
+Each mechanism of \cref{sec-anatomy} leaves a known shape in carry space. The detector tests one \emph{template}
+$t\in\R^K$ per mechanism and location:
+\begin{center}\small
+\begin{tabular}{lp{3.3cm}p{4.3cm}p{4.6cm}}
+\toprule
+Template & Vector & Mechanisms & Amplitude $a$ in natural units\\
+\midrule
+level & $\one$ & spot snapshot; dividend before $T_1$ & spot error $\approx-a$; front dividend $\approx-a(S-D_1)$\\
+step $k$ & $\one\{T\ge T_k\}$ & dividend amount in $(T_{k-1},T_k]$; panel change at $T_k$ & dividend error $\approx-a(S-D_k)$\\
+spike $k$ & $e_k$ & forward outlier; ex-date timing across $T_k$ & $\delta\ln F_k\approx-a$; timing share $\approx-a(S-D_k)/\tilde d_i$\\
+season & $\sum_i\tilde d_iK_h(T_k-t_i)/(S-D_k)$ & ex-date profile shift & shift $\approx365\,a$ days\\
+\bottomrule
+\end{tabular}
+\end{center}
+$K_h$ is a Gaussian kernel ($h=20$ days). The natural units follow from \cref{prop-spot,prop-bucket,prop-timing,prop-profile}.
+A spike at the last pillar is the same vector as a step there and is reported as either. With eleven pillars there
+are \vNTemplates{} templates.
+
+\subsection{Whitening, projection and the matched filter}
+Let $\kappa\Sigma=LL^\top$ (Cholesky), $\tilde y=L^{-1}y$, $\tilde X=L^{-1}X$, and $P=I-QQ^\top$ with $Q$ an orthonormal
+basis of the columns of $\tilde X$: $P$ removes the null model in whitened space. Write $r=P\tilde y$ and
+$\tb=PL^{-1}t$.
+
+\begin{theorem}[Generalised likelihood-ratio test for one template]\label{thm-glrt}
+In the model $y=X\beta+a\,t+\varepsilon$, $\varepsilon\sim\N(0,\kappa\Sigma)$, with $\beta$ unknown, the generalised
+likelihood-ratio statistic for $H_0:a=0$ against $H_1:a\ne0$ is $z_t^2$ with
+\begin{equation}\label{eq-z}
+z_t=\frac{\tb^\top r}{\|\tb\|},\qquad z_t\sim\N\bigl(a\|\tb\|,\,1\bigr).
+\end{equation}
+The maximum-likelihood amplitude is $\hat a_t=\tb^\top r/\|\tb\|^2$ with standard error $1/\|\tb\|$. Among tests
+invariant to the null-model subspace and to the sign of $a$, the test that rejects for large $|z_t|$ is uniformly most
+powerful.
+\end{theorem}
+\begin{proof}
+After whitening, $\tilde y=\tilde X\beta+a\,L^{-1}t+\tilde\varepsilon$ with $\tilde\varepsilon\sim\N(0,I)$. The maximised
+log-likelihood is $-\frac12$ times the residual sum of squares, which is $\|P\tilde y\|^2$ under $H_0$ and the residual of
+the regression on $[\tilde X,L^{-1}t]$ under $H_1$. By the Frisch--Waugh--Lovell theorem~\cite{lovell1963} the latter equals
+$\|r\|^2-(\tb^\top r)^2/\|\tb\|^2$, so $2\ln\Lambda=(\tb^\top r)^2/\|\tb\|^2=z_t^2$, and $\hat a_t$ is the
+coefficient of the partialled-out regression. Since $P\tilde X=0$ and $\tb^\top P=\tb^\top$,
+$\tb^\top r=a\,\tb^\top L^{-1}t+\tb^\top\tilde\varepsilon=a\|\tb\|^2+\tb^\top\tilde\varepsilon$, and
+$\tb^\top\tilde\varepsilon/\|\tb\|\sim\N(0,1)$. Optimality is the matched-subspace detector result of Scharf and
+Friedlander~\cite{scharf1994}; see also~\cite{kay1998}.
+\end{proof}
+
+\begin{corollary}[Power and signal-to-noise]\label{cor-power}
+At threshold $c$ the detection probability is $\Phi(\lambda-c)+\Phi(-\lambda-c)$, where $\lambda=|a|\,\|\tb\|$ is the
+signal-to-noise ratio of the anomaly. With the typical family-wise threshold $c\approx\vZcrit$ of the benchmark, an
+anomaly with $\lambda=4$ is detected with probability \vPowThFour{} and one with $\lambda=6$ with \vPowThSix.
+\end{corollary}
+\begin{proof}
+$|z_t|>c$ with $z_t\sim\N(\lambda,1)$ (up to sign).
+\end{proof}
+
+\begin{proposition}[Global test]\label{prop-q}
+Under $H_0$, $Q=\|r\|^2\sim\chi^2_{K-p}$ with $p=2$ the number of null-model columns.
+\end{proposition}
+\begin{proof}
+$r=P\tilde\varepsilon$ with $P$ an orthogonal projection of rank $K-p$.
+\end{proof}
+$Q$ catches roughness that no template explains.
+
+\subsection{Family-wise calibration}
+\begin{proposition}[Family-wise critical value]\label{prop-family}
+Under $H_0$ the vector $z=(z_t)_t$ is Gaussian with mean zero and correlation $C_{tu}=\tb^\top\tilde u/(\|\tb\|\|\tilde u\|)$,
+which depends neither on $\beta$ nor on $\kappa$. The critical value $c_\alpha$ with $P(\max_t|z_t|>c_\alpha)=\alpha/2$ is
+computed exactly by simulating $\N(0,C)$, and is at most the Šidák value
+$\Phi^{-1}\bigl(1-\tfrac12[1-(1-\alpha/2)^{1/m}]\bigr)$ for $m$ templates. The rule ``alarm if $\max_t|z_t|>c_\alpha$ or $Q$
+exceeds its $1-\alpha/2$ quantile'' has false-alarm rate at most $\alpha$.
+\end{proposition}
+\begin{proof}
+$z=D^{-1}\tilde T^\top P\tilde\varepsilon$ with $\tilde T$ the matrix of the $\tb$ and $D$ their norms, hence the
+correlation. Šidák's inequality~\cite{sidak1967} gives $P(\max_t|z_t|\le c)\ge\prod_tP(|z_t|\le c)$ for any
+correlation, so the Šidák threshold is conservative. The two tests share the budget $\alpha$ by the union bound.
+\end{proof}
+
+\begin{proposition}[Exact calibration of the variance scale]\label{prop-kappa}
+Replacing $\kappa=1$ by $\kappa$ divides every $z_t$ by $\sqrt\kappa$ and $Q$ by $\kappa$, and leaves $c_\alpha$
+unchanged. For a set of clean names the alarm indicator is therefore non-increasing in $\kappa$, the empirical alarm
+rate is a non-increasing step function of $\kappa$, and the smallest $\kappa$ whose alarm rate does not exceed the
+target is found exactly by bisection on $\ln\kappa$.
+\end{proposition}
+\begin{proof}
+Whitening with $\sqrt\kappa L$ scales $\tilde y$, $\tilde X$ and every $\tb$ by $\kappa^{-1/2}$; $P$ is unchanged, so $r$ and
+$\tb$ scale by $\kappa^{-1/2}$, $z_t$ by $\kappa^{-1/2}$ and $Q$ by $\kappa^{-1}$; $C$ is a correlation and does not move.
+Each name's indicator $\{\max|z|/\sqrt\kappa>c\}\cup\{Q/\kappa>q\}$ shrinks as $\kappa$ grows.
+\end{proof}
+
+\subsection{Attribution, repair and the FO-mismark test}
+After an alarm, templates are selected greedily (matching pursuit~\cite{mallat1993}): at each step the template with the
+largest $|z|$ after projecting out the null model and the templates already chosen is added, while it exceeds
+$c_\alpha$. The selected templates are then refitted jointly with the null model by generalised least squares, each
+amplitude is translated into natural units, and the \emph{repaired} carry is $y-\sum_{t\in\mathcal S}\hat a_t\,t$.
+Templates inside the span of the null model are undetectable by design: a smooth repo difference is legitimate
+disagreement, reported but never flagged.
+
+The repo level $\hat\beta_0$ (Totem minus FO at one year) and its standard error come from the same fit. The FO repo is
+reported as a candidate mismark when $|\hat\beta_0|$ exceeds both $10$\,bp and $t_{\nu,1-\alpha/2}\cdot s\cdot\operatorname{se}(\hat\beta_0)$:
+\begin{itemize}
+\item $t_\nu$ is a Student quantile with $\nu=n_{A}-1$ at the short end: the standard error rests on dispersions
+estimated from a handful of contributors, and a Gaussian estimate divided by an independent $\chi^2_\nu$-based scale is
+Student distributed;
+\item $s\ge1$ is a scale calibrated on clean history exactly like $\kappa$, so that clean names raise at most
+$\alpha$ FO-mismark flags (\vLevelScaleEuStock, \vLevelScaleUsStock, \vLevelScaleHtb{} and \vLevelScaleIndex{} for the
+four categories of the benchmark).
+\end{itemize}
+
+\begin{example}[A detection by hand]\label{ex-toy}
+Four pillars $T=(0.25,0.5,1,2)$, independent noise with standard deviations $(1,2,4,8)$\,bp of carry, a null model
+with the repo level only ($X=T$), a true level of $30$\,bp, a spike of $12$\,bp at $T_2$ and noise
+$(0.4,-1.1,2.6,-3.0)$\,bp, so $y=(7.9,25.9,32.6,57.0)$\,bp. The fitted level is $\hat\beta_0=\vToyBeta$\,bp and
+$Q=\vToyQ$ (the $99\%$ quantile of $\chi^2_3$ is $11.3$). The \vToyM{} templates give
+\begin{center}\input{generated/\lang/tab_toy}\end{center}
+The family-wise critical value at $\alpha=2\%$ is $c=\vToyC$ (Šidák: \vToyCsidak). The spike at $T_2$ wins
+($z=4.52$, amplitude $10.5\pm2.3$\,bp against $12$ injected); the step from $T_2$ also scores high because the two
+templates are correlated. Matching pursuit adds the spike, after which every remaining $|z|$ is below $0.8$ and $Q$
+falls to $0.6$: one explanation suffices.
+\end{example}
+
+\subsection{Algorithms}
+\begin{algorithm}[ht]
+\caption{Implied repo bootstrap}\label{alg-bootstrap}
+\begin{algorithmic}[1]
+\Require spot $S$, cumulative rate $R(\cdot)$, dividends $(t_i,d_i)$, pillars $T_1<\dots<T_K$, forwards $F_1,\dots,F_K$
+\For{$k=1,\dots,K$}
+  \State build $\Phi_k$ of \cref{eq-phik} from $B_1,\dots,B_{k-1}$
+  \State $x\gets R_k-\ln\bigl(F_k/(S-\hat D_k)\bigr)$ \Comment{in-period dividends at the previous repo}
+  \Repeat
+    \State $g\gets\ln\Phi_k(x)-\ln F_k$; update the bracket $[\ell,u]$ with the sign of $g$
+    \State $x\gets x-g\,\Phi_k(x)/\Phi_k'(x)$; if $x\notin(\ell,u)$, $x\gets(\ell+u)/2$
+  \Until{the step is below tolerance}
+  \State $B_k\gets x$
+\EndFor
+\State \Return $b_k=B_k/T_k$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[ht]
+\caption{Structural detection}\label{alg-detect}
+\begin{algorithmic}[1]
+\Require carry difference $y$, covariance $\Sigma$, scale $\kappa$, null design $X$, templates $\mathcal T$, level $\alpha$
+\State $L\gets\operatorname{chol}(\kappa\Sigma)$; $P\gets$ projector removing $L^{-1}X$; $r\gets PL^{-1}y$; $Q\gets\|r\|^2$
+\State for each $t\in\mathcal T$: $\tb\gets PL^{-1}t$, $z_t\gets\tb^\top r/\|\tb\|$
+\State $c_\alpha\gets$ the $1-\alpha/2$ quantile of $\max_t|Z_t|$, $Z\sim\N(0,C)$ \Comment{\cref{prop-family}}
+\State alarm $\gets\max_t|z_t|>c_\alpha$ \textbf{or} $Q>\chi^2_{K-2}(1-\alpha/2)$
+\If{alarm}
+  \State $\mathcal S\gets\emptyset$; \textbf{repeat} add the template with the largest $|z|$ after projecting out $[X,\mathcal S]$
+  \Statex \hspace{\algorithmicindent} \textbf{while} that $|z|$ exceeds $c_\alpha$
+\EndIf
+\State joint GLS fit of $y$ on $[X,\mathcal S]$; translate amplitudes into natural units; repaired carry $y-\sum\hat a_tt$
+\State FO-mismark flag if $|\hat\beta_0|>\max\bigl(10\text{\,bp},\;t_{\nu}\,s\operatorname{se}(\hat\beta_0)\bigr)$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[ht]
+\caption{Calibration of the variance scale}\label{alg-kappa}
+\begin{algorithmic}[1]
+\Require clean names $i=1,\dots,N$ with $(\max_t|z_{t,i}|,\,c_i,\,Q_i)$ computed at $\kappa=1$, target $\alpha$
+\State $\ell\gets\ln10^{-3}$, $u\gets\ln10^{3}$
+\For{$60$ iterations}
+  \State $m\gets(\ell+u)/2$; rate $\gets\frac1N\sum_i\one\bigl\{\max|z_i|e^{-m/2}>c_i\ \text{or}\ Q_ie^{-m}>q_{1-\alpha/2}\bigr\}$
+  \State \textbf{if} rate $\le\alpha$ \textbf{then} $u\gets m$ \textbf{else} $\ell\gets m$
+\EndFor
+\State \Return $\kappa=e^{u}$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Examples on synthetic names}
+\Cref{fig-decomposition} shows the machinery in carry space for a dividend bucket error, and \cref{fig-gallery} six
+detections in repo space with the detector's explanations in \cref{tab-gallery}.
+
+\begin{figure}[ht]
+\centering\includegraphics[width=\linewidth]{figures/\lang/decomposition.pdf}
+\caption{Carry-space view of the Totem dividend bucket error of \cref{fig-gallery}(b): observed carry difference,
+null fit with its $\pm2$ standard-deviation band, and null fit plus the selected step template.}
+\label{fig-decomposition}
+\end{figure}
+
+\begin{figure}[p]
+\centering\includegraphics[width=\linewidth]{figures/\lang/gallery.pdf}
+\caption{Six synthetic EU single stocks, one per scenario, with the benchmark's detector settings: FO repo,
+Totem-implied repo, the implied repo with the detected anomaly removed, and the per-pillar noise band. In (f) the
+Totem curve is fine and the FO repo is shifted: no anomaly is raised and the FO mismark is reported; the band is per
+pillar while the mismark test pools all pillars.}
+\label{fig-gallery}
+\end{figure}
+
+\begin{table}[ht]
+\centering
+\caption{First explanation returned by the detector for each panel of \cref{fig-gallery}.}\label{tab-gallery}
+\input{generated/\lang/tab_gallery}
+\end{table}
+
+\subsection{Small neural networks are matched filters}
+\begin{proposition}\label{prop-nn}
+Let the null model be projected out and the noise whitened, so that $r\sim\N(0,P)$ under $H_0$ and
+$r\sim\N(a\tb,P)$ under $H_1$ with a known template $t$ and amplitude $a$. The Bayes posterior log-odds is
+\begin{equation}\label{eq-nn}
+\ln\frac{P(H_1\mid r)}{P(H_0\mid r)}=a\,\tb^\top r-\tfrac12a^2\|\tb\|^2+\ln\frac{\pi_1}{\pi_0},
+\end{equation}
+a linear function of the matched filter $\tb^\top r$. A classifier trained by cross-entropy on enough data converges to
+this posterior, so in this setting a ``small network per anomaly type'' can at best learn the matched filter; with an
+unknown amplitude and sign the likelihood-ratio statistic $|z_t|$ of \cref{thm-glrt} emerges.
+\end{proposition}
+\begin{proof}
+The two Gaussian densities share the covariance $P$, so their log-ratio is linear in $r$; the quadratic terms cancel.
+Cross-entropy is minimised by the true posterior. Maximising \cref{eq-nn} over $a$ gives $(\tb^\top r)^2/(2\|\tb\|^2)$.
+\end{proof}
+
+\begin{insight}
+The detector is the optimal one for the mechanisms we can name, written down instead of learned: its false-alarm rate
+is set exactly, its power is known in closed form (\cref{cor-power}), and every alarm comes with an amplitude in
+natural units. Learned models earn their place on what the templates do not cover (\cref{sec-alternatives}).
+\end{insight}

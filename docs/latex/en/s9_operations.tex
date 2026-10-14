@@ -1,0 +1,70 @@
+\section{Implementation and operations}\label{sec-ops}
+
+\subsection{Package}
+The Python package \code{repo\_control} (numpy and scipy; scikit-learn only for the mixture baseline) implements every
+object of this note:
+\begin{center}\small
+\begin{tabular}{p{2.9cm}p{12.2cm}}
+\toprule
+Module & Content\\
+\midrule
+\code{curves} & zero curves with flat forwards, discrete dividends, forwards, the bootstrap of \cref{alg-bootstrap}\\
+\code{parity} & forward and discount factor from consensus call and put prices (\cref{lem-parity})\\
+\code{buckets} & dividend periods, allocation, allocation matrix $A$ (\cref{lem-allocation})\\
+\code{noise} & panel gap, nested-panel covariance, option- and dividend-panel covariance, dispersion capping (\cref{sec-noise})\\
+\code{pipeline} & Totem and FO snapshots $\to$ implied repo, carry difference, $\Sigma$, detection context\\
+\code{detect} & templates, matched filters, family-wise and $\kappa$ calibration, attribution, repair, FO-mismark test\\
+\code{control} & control lines, bootstrap Jacobian $J$, split materiality (\cref{sec-control})\\
+\code{pricer} & a minimal pricer producing bucketed sensitivities for the examples\\
+\code{synthetic}, \code{benchmark}, \code{baselines} & contributor-level synthetic market and the benchmark of \cref{sec-benchmark}\\
+\bottomrule
+\end{tabular}
+\end{center}
+Every component has a closed-form check in the test suite: bootstrap round trip, parity, the control identity against
+full revaluation, the panel-gap and drop-off formulas, null calibration of the detector and recovery of each template.
+
+\subsection{Production inputs}
+\begin{center}\small
+\begin{tabular}{p{2.4cm}p{10.0cm}p{2.4cm}}
+\toprule
+Input & Fields & Shape\\
+\midrule
+Totem options & expiries; strikes; consensus call and put prices; contributors; dispersion of contributor forwards (or an estimate); reference spot & $K\times M$\\
+Totem dividends & period edges; consensus level; dispersion; contributors (net of dividends already paid) & $Y$\\
+FO market & spot at the Totem snapshot time; rate curve; repo zero curve at the Totem expiries; dividend forecast & $K$; list\\
+FO risk & repo sensitivities by pillar (mapped to the Totem expiries); dividend sensitivities by Totem period & $K+Y$ per book\\
+History & twelve to twenty-four monthly snapshots and known incidents & for $\kappa$ and validation\\
+\bottomrule
+\end{tabular}
+\end{center}
+If the dispersion of contributor forwards is not published, it can be estimated from the dispersion of deep in-the-money
+calls and puts or calibrated on history; the detector needs the right scale per expiry, and $\kappa$ corrects a common
+bias.
+
+\subsection{Monthly procedure}
+\begin{enumerate}
+\item Load the Totem and FO snapshots at the same valuation time; check the reference spot.
+\item Imply forwards by parity; review the implied discount factor, the parity residuals and the dispersion ratios.
+\item Allocate the Totem dividend periods on the FO ex-date profile; imply repo with Totem dividends and with FO dividends.
+\item Build $\Sigma$ and run the detector with the $\kappa$ and level scale of the region and category.
+\item Compute the control lines per book: forward, dividend, non-forward and repo lines; check split materiality.
+\item Review alarms with their explanations and FO-mismark candidates; use the repaired curve where a Totem anomaly is confirmed.
+\item Record the decision for each alarm; the labels feed the next calibration.
+\end{enumerate}
+
+\subsection{Calibration and governance}
+$\kappa$ and the level scale are recalibrated quarterly per region and category on clean history, with an alarm budget
+of \vFPR{} of names per month. The realised alarm rate and the share of explanations accepted by reviewers are
+monitored. Where they trade, exchange anchors complement the detector: listed index and dividend futures, total-return
+futures that quote a financing spread, and securities-lending fees for the short end of single stocks.
+
+\section{Conclusion}
+Implied repo curves are irregular because they are the residual of two consensus means computed on different panels;
+part of that residual cannot be removed by any method that sees only consensus data (\cref{thm-nonid}). Two
+consequences follow. For forward-linear exposure the total control does not need the split, exactly on full revaluation
+and to first order on control lines (\cref{thm-control,thm-exact}), and the non-forward exposure $g$ tells, book by book,
+how much the split matters. For detection, the mechanisms that do produce bad curves have known signatures in carry space;
+matched filters with a noise model built from Totem's own statistics detect them at a calibrated false-alarm rate,
+explain them in natural units and keep genuine FO mismarks apart. The next step is to run the pipeline on twelve to
+twenty-four months of real Totem and FO snapshots, calibrate the settings per region and category, and measure
+attribution against labelled incidents.

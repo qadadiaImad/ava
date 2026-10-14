@@ -1,0 +1,17 @@
+{\footnotesize\begin{tabular}{p{5.6cm}rrrrr}
+\toprule
+Scenario & \makecell{Naive\\gap} & \makecell{Naive\\shape} & \makecell{GMM\\curve} & \makecell{GMM\\diff.} & \makecell{Struc-\\tural} \\
+\midrule
+Clean (null) & \pct{2} & \pct{3} & \pct{2} & \pct{3} & \pct{3} \\
+Spot snapshot mismatch & \pct{89} & \pct{64} & \pct{96} & \pct{100} & \pct{98} \\
+Totem dividend bucket error & \pct{29} & \pct{41} & \pct{47} & \pct{56} & \pct{55} \\
+Ex-date timing split in option panel & \pct{55} & \pct{74} & \pct{65} & \pct{69} & \pct{71} \\
+Stale ex-date profile in allocation & \pct{90} & \pct{92} & \pct{94} & \pct{94} & \pct{94} \\
+Forward outlier at one expiry & \pct{35} & \pct{87} & \pct{74} & \pct{78} & \pct{97} \\
+Biased long-dated sub-panel & \pct{42} & \pct{24} & \pct{36} & \pct{39} & \pct{24} \\
+FO repo mismark (genuine) & \pct{60} & \pct{3} & \pct{2} & \pct{75} & \pct{3} \\
+Gross/net dividend bias (all buckets) & \pct{70} & \pct{71} & \pct{80} & \pct{86} & \pct{88} \\
+\midrule
+\textbf{Mean over the six Totem anomalies} & \textbf{\pct{57}} & \textbf{\pct{64}} & \textbf{\pct{69}} & \textbf{\pct{73}} & \textbf{\pct{73}} \\
+\bottomrule
+\end{tabular}}

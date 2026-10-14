@@ -5,3 +5,4 @@ docs/_build/
 results/benchmark.json
 results/benchmark.log
 *.egg-info/
+docs/latex/build/

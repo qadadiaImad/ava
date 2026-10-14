@@ -1,0 +1,158 @@
+\section{Repo control from forward and dividend controls}\label{sec-control}
+
+\subsection{Control lines}
+Collect the repo zero rates at the pillars and the dividend levels per period in $\theta=(b,L)\in\R^K\times\R^Y$. The
+spot, the rate curve and the allocation profile are fixed, so the pillar forwards are a smooth map $F(\theta)\in\R^K$.
+By \cref{prop-bootstrap} the \emph{implied repo map} $\beta(F,L)$, the unique $b$ with $F(b,L)=F$, is well defined.
+
+FO marks are $\theta^\FO=(b^\FO,L^\FO)$. Totem gives forwards $F^\T$ and dividend levels $L^\T$, hence
+$b^\T=\beta(F^\T,L^\T)$. A position has value $V(\theta)$ with FO sensitivities $s_b=\partial_bV(\theta^\FO)\in\R^K$ and
+$s_D=\partial_LV(\theta^\FO)\in\R^Y$. Write $\Delta L=L^\T-L^\FO$, $\Delta b=b^\T-b^\FO$ and
+$\Delta b^F=\beta(F^\T,L^\FO)-b^\FO$: the repo difference implied by Totem forwards \emph{with FO dividends}.
+
+\begin{definition}[Control lines]\label{def-lines}
+\[
+\text{div line}=s_D\cdot\Delta L,\qquad\text{repo line}=s_b\cdot\Delta b,\qquad\text{forward line}=s_b\cdot\Delta b^F,
+\]
+and the \emph{total} is the sum of the dividend and repo lines.
+\end{definition}
+
+\begin{definition}[Forward-linear exposure]\label{def-fwdlinear}
+A position is forward-linear if $V(\theta)=\Phi\bigl(F(\theta)\bigr)$ for a $C^2$ function $\Phi$: its value depends on
+repo and dividends only through the forwards (European options with a vol surface that does not depend on them,
+forwards, futures).
+\end{definition}
+
+\subsection{The implied-repo Jacobian}
+\begin{lemma}\label{lem-jacobian}
+$J:=\partial_L\beta(F,L)=-(\partial_bF)^{-1}\partial_LF$. The matrix $\partial_bF$ is lower triangular with diagonal
+entries $\partial F_k/\partial b_k\le-T_kF_k<0$, so $J$ exists. To leading order
+\begin{equation}\label{eq-jacobian}
+J_{ky}\approx-\frac{A_{ky}}{T_k\,(S-D_k)}.
+\end{equation}
+\end{lemma}
+\begin{proof}
+Differentiate $F(\beta(F,L),L)=F$ in $L$: $\partial_bF\,J+\partial_LF=0$. With flat forward repo between pillars, $F_k$
+depends on $b_1,\dots,b_k$ only, so $\partial_bF$ is lower triangular; its diagonal is
+$T_k\,\Phi_k'(B_k)\le-T_kF_k$ by \cref{lem-monotone}. For the leading order, hold the forwards fixed in
+\cref{eq-additivity}: $\delta B_k=-\delta D_k/(S-D_k)=-A_{ky}\delta L_y/(S-D_k)$, and divide by $T_k$.
+\end{proof}
+
+\subsection{The control identity}
+\begin{theorem}[Div-agnostic total]\label{thm-control}
+For any position,
+\begin{equation}\label{eq-control}
+\text{div line}+\text{repo line}=\text{forward line}+g\cdot\Delta L+O(\|\Delta\|^2),\qquad g=s_D+s_b\,J,
+\end{equation}
+with $J$ evaluated at $(F^\T,L^\FO)$ and $\|\Delta\|=\|\Delta L\|+\|\Delta b^F\|$. If the position is forward-linear,
+then $g=O(\|\Delta\|)$, so the total equals the forward line up to second order: it does not depend on the dividend
+panel to first order.
+\end{theorem}
+\begin{proof}
+A first-order expansion of $\beta$ in $L$ gives $\beta(F^\T,L^\T)=\beta(F^\T,L^\FO)+J\Delta L+O(\|\Delta L\|^2)$, i.e.
+$\Delta b=\Delta b^F+J\Delta L+O(\|\Delta L\|^2)$. Hence
+$s_D\cdot\Delta L+s_b\cdot\Delta b=s_b\cdot\Delta b^F+(s_D+s_bJ)\cdot\Delta L+O(\|\Delta\|^2)$.
+For $V=\Phi\circ F$, $s_b=\nabla\Phi\,\partial_bF(\theta^\FO)$ and $s_D=\nabla\Phi\,\partial_LF(\theta^\FO)$, so
+$g=\nabla\Phi\,\bigl[\partial_LF+\partial_bF\,J\bigr](\theta^\FO)$. At $\theta'=(\beta(F^\T,L^\FO),L^\FO)$ the bracket
+vanishes by \cref{lem-jacobian}; since $\theta'-\theta^\FO=(\Delta b^F,0)$ and the derivatives are Lipschitz, the
+bracket at $\theta^\FO$ is $O(\|\Delta b^F\|)$, hence $g\cdot\Delta L=O(\|\Delta\|^2)$.
+\end{proof}
+
+\begin{theorem}[Exactness of full revaluation]\label{thm-exact}
+If the position is forward-linear and all its expiries are Totem pillars, the full-revaluation control
+$V(\theta^\T)-V(\theta^\FO)=\Phi(F^\T)-\Phi\bigl(F(\theta^\FO)\bigr)$ does not depend on the Totem dividends $L^\T$
+at all.
+\end{theorem}
+\begin{proof}
+By construction of the implied repo, $F(\theta^\T)=F\bigl(\beta(F^\T,L^\T),L^\T\bigr)=F^\T$ whatever $L^\T$ is.
+\end{proof}
+
+\begin{remark}[Expiries between pillars]
+For an expiry between two pillars the forward depends on the interpolated carry and on the allocated dividends in
+between, so a residual dependence on $L^\T$ remains. It is of the size of the dividends going ex between the expiry
+and its neighbouring pillars, exactly the timing and profile effects of \cref{prop-timing,prop-profile}, which the
+detector watches.
+\end{remark}
+
+\begin{proposition}[Second-order term]\label{prop-second}
+For one pillar, $F(b,D)=e^{R-bT}(S-D)$ and $V=\Phi\circ F$, the first-order total equals
+\begin{equation}\label{eq-second}
+\Phi'(F)\,\Delta F-\Phi'(F)\,F\Bigl[\tfrac12T^2\Delta b^2+\frac{T\,\Delta b\,\Delta D}{S-D}\Bigr]+O(\|\Delta\|^3),
+\end{equation}
+whereas the exact control is $\Phi'(F)\Delta F+\tfrac12\Phi''(F)\Delta F^2+O(\|\Delta\|^3)$. The dependence of the
+first-order total on the dividend panel is therefore entirely in the bracket.
+\end{proposition}
+\begin{proof}
+Expand $F$ to second order: $F_b=-TF$, $F_D=-F/(S-D)$, $F_{bb}=T^2F$, $F_{bD}=TF/(S-D)$, $F_{DD}=0$, so
+$\Delta F=F_b\Delta b+F_D\Delta D+\tfrac12T^2F\Delta b^2+TF\Delta b\,\Delta D/(S-D)+O(3)$. The first-order total is
+$\Phi'(F_b\Delta b+F_D\Delta D)$; substitute.
+\end{proof}
+
+\subsection{How much the split matters for a book}
+\begin{proposition}[Split materiality]\label{prop-materiality}
+Let the dividend consensus error $\Delta L$ have covariance $\Sigma_L$ (consensus noise) with the Totem forwards
+fixed. To first order the variance of the total is $g^\top\Sigma_Lg$, against $s_D^\top\Sigma_Ls_D$ for the dividend
+line alone. The share of the dividend-line uncertainty that cancels against the repo line is
+$1-\sqrt{g^\top\Sigma_Lg\,/\,s_D^\top\Sigma_Ls_D}$.
+\end{proposition}
+\begin{proof}
+By \cref{thm-control} the total is the forward line, which does not involve $L^\T$, plus $g\cdot\Delta L$.
+\end{proof}
+
+\begin{corollary}[Offset ratio]
+For a forward-linear book a move of the dividend panel produces large and opposite dividend and repo lines with a
+small total. An offset ratio $1-|\text{total}|/(|\text{div line}|+|\text{repo line}|)$ close to one therefore points
+to a split artefact, not to a mismark.
+\end{corollary}
+
+$g$ is computed from FO sensitivities and the bootstrap Jacobian only; no repricing is needed.
+
+\subsection{Worked examples}
+\begin{example}[One call]\label{ex-call}
+A one-year at-the-money call (spot $100$, rate $3\%$, volatility $25\%$, FO dividend $3.5$, FO repo $60$\,bp), with
+Totem forward $20$\,bp below FO and three different dividend panels:
+\begin{center}\input{generated/\lang/tab_cancel}\end{center}
+The implied repo moves by $125$\,bp across panels and each line by about $0.3$, but the total does not move.
+\end{example}
+
+\begin{example}[Three books]\label{ex-books}
+The prototype pricer values three books on eleven repo pillars and six dividend periods: A (calls, puts and a
+forward), B (A plus a short dividend swap on 2028) and C (A plus a one-year stock-loan fee). Totem forwards are $20$\,bp
+below FO and the Totem dividend panel moves the 2027 and 2028 periods by $-0.4$, $0$ or $+0.5$:
+\begin{center}\input{generated/\lang/tab_books}\end{center}
+For book A the total stays at \vBookATotal{} while each line swings by more than six units. For books B and C the
+total moves, by exactly the non-forward line $g\cdot\Delta L$: the dividend swap is a genuine dividend exposure and
+the stock-loan fee a genuine repo exposure.
+\end{example}
+
+\begin{figure}[ht]
+\centering\includegraphics[width=\linewidth]{figures/\lang/cancellation.pdf}
+\caption{Dividend line, repo line and their total as the Totem dividend panel moves (book A left, book B right).
+Dots: full revaluation. For forward-linear exposure the total is flat (\cref{thm-control,thm-exact}); the dividend
+swap adds a genuine dividend exposure whose line is exactly $g\cdot\Delta L$.}
+\label{fig-cancellation}
+\end{figure}
+
+\begin{example}[Materiality]\label{ex-materiality}
+With a dividend consensus dispersion of $5\%$ of each period, ten contributors and correlation $e^{-|\Delta y|/2}$
+between periods, \cref{prop-materiality} gives
+\begin{center}\input{generated/\lang/tab_materiality}\end{center}
+\vMatA{} of the dividend-line uncertainty cancels for book A; \vMatB{} and \vMatC{} for books B and C.
+\end{example}
+
+\subsection{When the split does matter}
+The non-forward exposure $g$ is non-zero for dividend swaps and futures (pure dividend), stock borrow and
+total-return-swap financing legs (pure repo), American exercise (the early-exercise boundary depends on dividends and
+repo separately) and exotics priced with discrete-dividend dynamics (the dividend model changes the volatility of the
+spot process). For those books the split must be controlled directly, and the quality of the implied repo curve
+(\cref{sec-detection}) matters.
+
+\begin{insight}
+\begin{itemize}[leftmargin=12pt]
+\item Control the \emph{forward line} and the \emph{non-forward line}: the first needs Totem forwards and FO dividends
+only; the second needs Totem dividends only where $g\neq0$.
+\item Large offsetting dividend and repo lines with a small total are a split artefact.
+\item Under prudent valuation~\cite{eu2016}, if uncertainties are aggregated per valuation input without netting, a split
+artefact is counted twice; defining the input as the forward where $g\approx0$ removes the double count.
+\end{itemize}
+\end{insight}

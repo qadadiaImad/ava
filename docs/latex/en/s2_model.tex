@@ -1,0 +1,159 @@
+\section{Model and notation}\label{sec-model}
+
+\subsection{Forwards with discrete dividends}
+Time is measured in years from the valuation date. Let $S$ be the spot, $r(t)$ the continuously compounded zero
+rate used for discounting and funding, and $b(t)$ the zero \emph{repo} (borrow cost) curve, so that holding the
+stock financed by a repo earns $r-b$. Write $R(t)=r(t)\,t$, $B(t)=b(t)\,t$ and $G(t)=e^{R(t)-B(t)}$. Cash
+dividends $d_i$ go ex at times $t_i$.
+
+\begin{definition}[Forward]\label{def-forward}
+The forward for delivery at $T$ is
+\begin{equation}\label{eq-forward}
+F(T)=G(T)\bigl(S-D(T)\bigr),\qquad D(T)=\sum_{t_i\le T}\frac{d_i}{G(t_i)}.
+\end{equation}
+$D(T)$ is the \emph{carry-discounted cumulative dividend}: dividends discounted at the carry rate $r-b$.
+\end{definition}
+
+\Cref{eq-forward} is the usual replication argument: buy the stock financed at $r-b$, pay the dividends forward.
+With flat curves it reads $F(T)=Se^{(r-b)T}-\sum_{t_i\le T}d_ie^{(r-b)(T-t_i)}$. Note that $D$ depends on the repo
+curve through $G(t_i)$; this coupling is weak (a few basis points of repo per year on the dividend discounting) but
+the bootstrap below handles it exactly.
+
+\subsection{Carry space}
+\begin{definition}[Carry]\label{def-carry}
+The \emph{cumulative repo} or \emph{carry} is $B(T)=b(T)\,T$. For a quantity observed at pillars $T_1<\dots<T_K$ we
+write $B_k=B(T_k)$, $b_k=b(T_k)$, $D_k=D(T_k)$, $F_k=F(T_k)$.
+\end{definition}
+
+\begin{lemma}[Additivity in carry]\label{lem-additivity}
+$\ln F(T)=R(T)-B(T)+\ln\bigl(S-D(T)\bigr)$. Consequently, perturbations of the forward, the dividends and the carry
+satisfy, to first order,
+\begin{equation}\label{eq-additivity}
+\delta B(T)=-\,\delta\ln F(T)-\frac{\delta D(T)}{S-D(T)}+\delta R(T).
+\end{equation}
+\end{lemma}
+\begin{proof}
+Take logarithms in \cref{eq-forward}; differentiate, using $\delta\ln(S-D)=-\delta D/(S-D)+O(\delta D^2)$.
+\end{proof}
+
+\begin{insight}
+In carry space the mechanisms add up and nothing is amplified. A carry error $\varepsilon$ at tenor $T$ is a repo
+error $\varepsilon/T$: the same $0.1\%$ error in the forward is $120$\,bp of repo at one month and $2$\,bp at five
+years. This is why implied repo curves look so noisy at the short end, and why all tests in this note work on $B$,
+not on $b$.
+\end{insight}
+
+\subsection{The implied repo map}
+Given forwards $F_1,\dots,F_K$ at the pillars, the rate curve and the dividends, the \emph{implied repo} is the repo
+curve, piecewise linear in $B$ (flat forward repo between pillars, $B(0)=0$), that reprices the forwards. It is
+solved pillar by pillar. Fix $B_1,\dots,B_{k-1}$ and let $x=B_k$. For a dividend between the previous pillar and
+$T_k$, $B(t_i)=B_{k-1}+w_i(x-B_{k-1})$ with $w_i=(t_i-T_{k-1})/(T_k-T_{k-1})\in(0,1]$, so the model forward at $T_k$ is
+\begin{equation}\label{eq-phik}
+\Phi_k(x)=Se^{R_k-x}-\sum_{t_i\le T_{k-1}}d_i\,e^{(R_k-R_i)-(x-B(t_i))}
+-\sum_{T_{k-1}<t_i\le T_k}d_i\,e^{(R_k-R_i)-(1-w_i)(x-B_{k-1})}.
+\end{equation}
+
+\begin{lemma}[Monotonicity]\label{lem-monotone}
+$\Phi_k'(x)\le-\Phi_k(x)$ for all $x$. In particular $\Phi_k$ is strictly decreasing wherever the forward is positive,
+and $g_k(x)=\ln\Phi_k(x)-\ln F_k$ satisfies $g_k'(x)\le-1$.
+\end{lemma}
+\begin{proof}
+Differentiating \cref{eq-phik} term by term,
+$\Phi_k'(x)=-Se^{R_k-x}+\sum_{t_i\le T_{k-1}}d_ie^{(\cdot)}+\sum_{T_{k-1}<t_i\le T_k}(1-w_i)\,d_ie^{(\cdot)}$.
+Every dividend term is positive and $1-w_i\le1$, so replacing $(1-w_i)$ by $1$ can only increase the right-hand
+side, which then equals $-\Phi_k(x)$. Dividing by $\Phi_k>0$ gives $g_k'\le-1$.
+\end{proof}
+
+\begin{proposition}[Well-posed bootstrap]\label{prop-bootstrap}
+Assume $S-D(T_{k-1})>0$ for the dividends already solved. Then for every $F_k>0$ there is a unique $B_k$ with
+$\Phi_k(B_k)=F_k$ and $\Phi_k>0$ on the solution branch. Newton's method on $g_k$ converges locally quadratically,
+and globally when safeguarded by bisection.
+\end{proposition}
+\begin{proof}
+As $x\to-\infty$,
+\[
+e^{x}\Phi_k(x)\to e^{R_k}\Bigl(S-\sum_{t_i\le T_{k-1}}d_ie^{-R_i+B(t_i)}\Bigr)=e^{R_k}\bigl(S-D(T_{k-1})\bigr)>0,
+\]
+because the in-period terms grow only like $e^{-(1-w_i)x}$; hence $\Phi_k\to+\infty$. As $x$ increases, $\Phi_k$
+decreases strictly while positive (\cref{lem-monotone}) and either tends to $0$ or crosses zero, so by continuity
+it takes every value in $(0,\infty)$ exactly once on the branch where it is positive. On that branch $g_k$ is
+$C^2$ with $|g_k'|\ge1$, so the Newton iteration $x\mapsto x-g_k(x)/g_k'(x)$ converges quadratically near the root;
+the bisection safeguard (keep a bracket $[\ell,u]$ with $g_k(\ell)>0>g_k(u)$ and fall back to its midpoint) makes
+convergence global.
+\end{proof}
+
+\begin{example}[A bootstrap by hand]\label{ex-bootstrap}
+Spot $100$, flat rate $3\%$, dividends $1.5$ at $t=0.30$ and $2.0$ at $t=0.80$, pillars $0.25$, $0.5$, $1$, true
+repo $80$, $70$, $60$\,bp. The forwards and the implied repo are
+\begin{center}\input{generated/\lang/tab_boot}\end{center}
+At the third pillar the Newton residual $|g_3|$ falls from \vNewtonA{} to \vNewtonB{} in one step and to zero in the
+next. Without dividends $g_k$ is linear and a single step suffices.
+\end{example}
+
+\subsection{Forwards from consensus option prices}
+\begin{lemma}[Parity and the consensus forward]\label{lem-parity}
+Let each contributor $j$ quote European calls and puts with a common discount factor $DF$. Then
+\begin{enumerate}[label=(\roman*)]
+\item $C_j(K)-P_j(K)=DF\,(F_j-K)$ for every strike;
+\item if the consensus averages the same contributors at every strike, $\overline{C}(K)-\overline{P}(K)=DF\,(\overline{F}-K)$
+with $\overline{F}$ the mean of the contributors' forwards;
+\item the strike $K^\ast$ where $\overline{C}=\overline{P}$ equals $\overline{F}$ and does not depend on $DF$;
+multiplying all prices by a common factor leaves $K^\ast$ unchanged.
+\end{enumerate}
+\end{lemma}
+\begin{proof}
+(i) is put--call parity~\cite{hull}. (ii) follows by averaging (i), which is linear. (iii) Set (ii) to zero; scaling both
+prices scales the line $K\mapsto\overline{C}-\overline{P}$ without moving its root.
+\end{proof}
+
+\begin{example}\label{ex-parity}
+With strikes $90$, $100$, $110$, puts $2.1$, $5.4$, $10.9$ and calls built from $F=102.3$, $DF=0.97$, the weighted
+regression of $\overline{C}-\overline{P}$ on $K$ returns $F=\vParF$ and $DF=\vParDF$. Scaling all prices by $1.02$
+(a wrong discount factor) returns $F=\vParFtwo$ and $DF=\vParDFtwo$: the forward is unchanged.
+\end{example}
+
+\begin{remark}
+Two cases break (ii)--(iii): outlier screening applied separately per strike and per option type (the averaged
+contributors differ between calls and puts), and American exercise (parity becomes an inequality). The fitted $DF$
+compared with the curve gives an implied funding spread that flags such expiries. The controller keeps its own
+rate curve on both sides of the comparison, so rates cancel in the Totem--FO difference.
+\end{remark}
+
+\subsection{Dividend buckets and allocation}
+\begin{definition}[Allocation]\label{def-allocation}
+Totem dividend levels $L_y$ are sums of dividends going ex in period $y=(e_{y-1},e_y]$ (typically calendar years). A
+profile assigns weights $\pi_i\ge0$ with $\sum_{i\in y}\pi_i=1$ to the ex-dates of each period; the allocated
+dividends are $d_i=L_y\pi_i$. The controller normally takes the FO ex-date calendar as profile.
+\end{definition}
+
+\begin{lemma}\label{lem-allocation}
+Holding $G$ fixed, $D_k=\sum_yA_{ky}L_y$ with $A_{ky}=\sum_{i\in y,\,t_i\le T_k}\pi_i/G(t_i)$.
+\end{lemma}
+\begin{proof}
+Substitute $d_i=L_y\pi_i$ in \cref{eq-forward} and group by period.
+\end{proof}
+$A_{ky}$ is the carry-discounted share of period $y$ that goes ex before expiry $k$. It is $0$ or close to $1/G$
+except for the periods that straddle an expiry, which is exactly where the profile matters.
+
+\subsection{Totem data model}
+\begin{assumption}[Consistent contributors]\label{ass-consistent}
+Contributor $j$ holds views $b_j(\cdot)$ and $D_j(\cdot)$ and quotes option prices consistent with
+$F_j(T)=G_j(T)(S-D_j(T))$, with the common rate curve and spot.
+\end{assumption}
+\begin{assumption}[Panels]\label{ass-panels}
+At expiry $T_k$ the option panel $\Aset_k$ has $n_{A,k}$ contributors; for period $y$ the dividend panel $\Bset_y$
+has $n_{B,y}$. Panels are nested in tenor ($\Aset_{k+1}\subseteq\Aset_k$, $\Bset_{y+1}\subseteq\Bset_y$). View errors
+are independent across contributors. The two services share $m$ contributors ($m=0$ for disjoint panels).
+\end{assumption}
+\begin{assumption}[Consensus]\label{ass-consensus}
+The consensus is the arithmetic mean over the panel. Totem reports, per expiry and per period, the consensus, the
+dispersion across contributors and their number.
+\end{assumption}
+
+\begin{definition}[Totem-implied repo and carry difference]\label{def-implied}
+The Totem-implied repo $b^\T$ is the bootstrap of the consensus forwards $\overline{F}_k$ with the allocated
+consensus dividends $\overline{L}_y$. With the FO repo $b^\FO$ at the same pillars, the \emph{carry difference} is
+\begin{equation}\label{eq-y}
+y_k=B^\T_k-B^\FO_k=\bigl(b^\T_k-b^\FO_k\bigr)\,T_k,\qquad k=1,\dots,K.
+\end{equation}
+\end{definition}

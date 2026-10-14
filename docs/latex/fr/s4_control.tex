@@ -1,0 +1,164 @@
+\section{Contrôle du repo à partir des contrôles forward et dividendes}\label{sec-control}
+
+\subsection{Lignes de contrôle}
+On regroupe les taux de repo zéro-coupon aux piliers et les niveaux de dividendes par période dans
+$\theta=(b,L)\in\R^K\times\R^Y$. Le spot, la courbe des taux et le profil d'allocation sont fixés, de sorte que les
+forwards aux piliers forment une application régulière $F(\theta)\in\R^K$. D'après la \cref{prop-bootstrap},
+l'\emph{application repo implicite} $\beta(F,L)$, l'unique $b$ tel que $F(b,L)=F$, est bien définie.
+
+Les marquages FO sont $\theta^\FO=(b^\FO,L^\FO)$. Totem fournit des forwards $F^\T$ et des niveaux de dividendes $L^\T$,
+d'où $b^\T=\beta(F^\T,L^\T)$. Une position a une valeur $V(\theta)$, avec des sensibilités FO
+$s_b=\partial_bV(\theta^\FO)\in\R^K$ et $s_D=\partial_LV(\theta^\FO)\in\R^Y$. On note $\Delta L=L^\T-L^\FO$,
+$\Delta b=b^\T-b^\FO$ et $\Delta b^F=\beta(F^\T,L^\FO)-b^\FO$ : l'écart de repo implicité par les forwards Totem
+\emph{avec les dividendes FO}.
+
+\begin{definition}[Lignes de contrôle]\label{def-lines}
+\[
+\text{ligne dividende}=s_D\cdot\Delta L,\qquad\text{ligne repo}=s_b\cdot\Delta b,\qquad\text{ligne forward}=s_b\cdot\Delta b^F,
+\]
+et le \emph{total} est la somme des lignes dividende et repo.
+\end{definition}
+
+\begin{definition}[Exposition linéaire en forward]\label{def-fwdlinear}
+Une position est linéaire en forward si $V(\theta)=\Phi\bigl(F(\theta)\bigr)$ pour une fonction $\Phi$ de classe $C^2$ :
+sa valeur ne dépend du repo et des dividendes qu'à travers les forwards (options européennes avec une nappe de
+volatilité qui n'en dépend pas, forwards, futures).
+\end{definition}
+
+\subsection{La jacobienne du repo implicite}
+\begin{lemma}\label{lem-jacobian}
+$J:=\partial_L\beta(F,L)=-(\partial_bF)^{-1}\partial_LF$. La matrice $\partial_bF$ est triangulaire inférieure avec des
+termes diagonaux $\partial F_k/\partial b_k\le-T_kF_k<0$, donc $J$ existe. Au premier ordre,
+\begin{equation}\label{eq-jacobian}
+J_{ky}\approx-\frac{A_{ky}}{T_k\,(S-D_k)}.
+\end{equation}
+\end{lemma}
+\begin{proof}
+On différentie $F(\beta(F,L),L)=F$ par rapport à $L$ : $\partial_bF\,J+\partial_LF=0$. Avec un repo forward constant
+entre piliers, $F_k$ ne dépend que de $b_1,\dots,b_k$, donc $\partial_bF$ est triangulaire inférieure ; sa diagonale vaut
+$T_k\,\Phi_k'(B_k)\le-T_kF_k$ d'après le \cref{lem-monotone}. Pour le premier ordre, on fixe les forwards dans
+\cref{eq-additivity} : $\delta B_k=-\delta D_k/(S-D_k)=-A_{ky}\delta L_y/(S-D_k)$, et on divise par $T_k$.
+\end{proof}
+
+\subsection{L'identité de contrôle}
+\begin{theorem}[Total indépendant des dividendes]\label{thm-control}
+Pour toute position,
+\begin{equation}\label{eq-control}
+\text{ligne dividende}+\text{ligne repo}=\text{ligne forward}+g\cdot\Delta L+O(\|\Delta\|^2),\qquad g=s_D+s_b\,J,
+\end{equation}
+avec $J$ évaluée en $(F^\T,L^\FO)$ et $\|\Delta\|=\|\Delta L\|+\|\Delta b^F\|$. Si la position est linéaire en forward,
+alors $g=O(\|\Delta\|)$ : le total égale la ligne forward au second ordre près et ne dépend donc pas du panel
+dividendes au premier ordre.
+\end{theorem}
+\begin{proof}
+Un développement au premier ordre de $\beta$ en $L$ donne $\beta(F^\T,L^\T)=\beta(F^\T,L^\FO)+J\Delta L+O(\|\Delta L\|^2)$,
+soit $\Delta b=\Delta b^F+J\Delta L+O(\|\Delta L\|^2)$. D'où
+$s_D\cdot\Delta L+s_b\cdot\Delta b=s_b\cdot\Delta b^F+(s_D+s_bJ)\cdot\Delta L+O(\|\Delta\|^2)$.
+Pour $V=\Phi\circ F$, $s_b=\nabla\Phi\,\partial_bF(\theta^\FO)$ et $s_D=\nabla\Phi\,\partial_LF(\theta^\FO)$, donc
+$g=\nabla\Phi\,\bigl[\partial_LF+\partial_bF\,J\bigr](\theta^\FO)$. En $\theta'=(\beta(F^\T,L^\FO),L^\FO)$, le crochet est nul
+d'après le \cref{lem-jacobian} ; comme $\theta'-\theta^\FO=(\Delta b^F,0)$ et que les dérivées sont lipschitziennes, le
+crochet en $\theta^\FO$ est un $O(\|\Delta b^F\|)$, donc $g\cdot\Delta L=O(\|\Delta\|^2)$.
+\end{proof}
+
+\begin{theorem}[Exactitude de la réévaluation complète]\label{thm-exact}
+Si la position est linéaire en forward et que toutes ses échéances sont des piliers Totem, le contrôle en
+réévaluation complète $V(\theta^\T)-V(\theta^\FO)=\Phi(F^\T)-\Phi\bigl(F(\theta^\FO)\bigr)$ ne dépend pas du tout des
+dividendes Totem $L^\T$.
+\end{theorem}
+\begin{proof}
+Par construction du repo implicite, $F(\theta^\T)=F\bigl(\beta(F^\T,L^\T),L^\T\bigr)=F^\T$ quel que soit $L^\T$.
+\end{proof}
+
+\begin{remark}[Échéances entre piliers]
+Pour une échéance située entre deux piliers, le forward dépend du portage interpolé et des dividendes alloués entre
+les deux : une dépendance résiduelle à $L^\T$ subsiste. Elle est de l'ordre des dividendes détachés entre l'échéance et
+les piliers voisins, c'est-à-dire exactement les effets de date et de profil des \cref{prop-timing,prop-profile}, que
+le détecteur surveille.
+\end{remark}
+
+\begin{proposition}[Terme du second ordre]\label{prop-second}
+Pour un pilier, avec $F(b,D)=e^{R-bT}(S-D)$ et $V=\Phi\circ F$, le total au premier ordre vaut
+\begin{equation}\label{eq-second}
+\Phi'(F)\,\Delta F-\Phi'(F)\,F\Bigl[\tfrac12T^2\Delta b^2+\frac{T\,\Delta b\,\Delta D}{S-D}\Bigr]+O(\|\Delta\|^3),
+\end{equation}
+alors que le contrôle exact vaut $\Phi'(F)\Delta F+\tfrac12\Phi''(F)\Delta F^2+O(\|\Delta\|^3)$. La dépendance du total au
+premier ordre vis-à-vis du panel dividendes est donc entièrement contenue dans le crochet.
+\end{proposition}
+\begin{proof}
+On développe $F$ au second ordre : $F_b=-TF$, $F_D=-F/(S-D)$, $F_{bb}=T^2F$, $F_{bD}=TF/(S-D)$, $F_{DD}=0$, d'où
+$\Delta F=F_b\Delta b+F_D\Delta D+\tfrac12T^2F\Delta b^2+TF\Delta b\,\Delta D/(S-D)+O(3)$. Le total au premier ordre vaut
+$\Phi'(F_b\Delta b+F_D\Delta D)$ ; on substitue.
+\end{proof}
+
+\subsection{Ce que la répartition coûte à un portefeuille}
+\begin{proposition}[Matérialité de la répartition]\label{prop-materiality}
+Supposons que l'erreur de consensus dividendes $\Delta L$ ait une covariance $\Sigma_L$ (bruit de consensus), les forwards
+Totem étant fixés. Au premier ordre, la variance du total vaut $g^\top\Sigma_Lg$, contre $s_D^\top\Sigma_Ls_D$ pour la
+seule ligne dividende. La part de l'incertitude de la ligne dividende compensée par la ligne repo vaut
+$1-\sqrt{g^\top\Sigma_Lg\,/\,s_D^\top\Sigma_Ls_D}$.
+\end{proposition}
+\begin{proof}
+D'après le \cref{thm-control}, le total est la ligne forward, qui ne fait pas intervenir $L^\T$, plus $g\cdot\Delta L$.
+\end{proof}
+
+\begin{corollary}[Ratio de compensation]
+Pour un portefeuille linéaire en forward, un mouvement du panel dividendes produit des lignes dividende et repo
+importantes et opposées, avec un total faible. Un ratio $1-|\text{total}|/(|\text{ligne div.}|+|\text{ligne repo}|)$
+proche de un signale donc un artefact de répartition, pas une erreur de marquage.
+\end{corollary}
+
+$g$ se calcule à partir des seules sensibilités FO et de la jacobienne du bootstrap ; aucune revalorisation n'est
+nécessaire.
+
+\subsection{Exemples chiffrés}
+\begin{example}[Un call]\label{ex-call}
+Un call à la monnaie à un an (spot $100$, taux $3\,\%$, volatilité $25\,\%$, dividende FO $3{,}5$, repo FO $60$\,pb),
+avec un forward Totem inférieur de $20$\,pb à celui du FO et trois panels dividendes différents :
+\begin{center}\input{generated/\lang/tab_cancel}\end{center}
+Le repo implicite varie de $125$\,pb d'un panel à l'autre et chaque ligne d'environ $0{,}3$, mais le total ne bouge pas.
+\end{example}
+
+\begin{example}[Trois portefeuilles]\label{ex-books}
+Le pricer du prototype valorise trois portefeuilles sur onze piliers de repo et six périodes de dividendes : A (calls,
+puts et un forward), B (A plus un swap de dividendes 2028 vendu) et C (A plus une commission de prêt de titres à un
+an). Les forwards Totem sont inférieurs de $20$\,pb à ceux du FO et le panel dividendes Totem déplace les périodes
+2027 et 2028 de $-0{,}4$, $0$ ou $+0{,}5$ :
+\begin{center}\input{generated/\lang/tab_books}\end{center}
+Pour le portefeuille A, le total reste à \vBookATotal{} alors que chaque ligne varie de plus de six unités. Pour B et C,
+le total bouge, exactement de la ligne non-forward $g\cdot\Delta L$ : le swap de dividendes est une véritable
+exposition aux dividendes et la commission de prêt une véritable exposition au repo.
+\end{example}
+
+\begin{figure}[ht]
+\centering\includegraphics[width=\linewidth]{figures/\lang/cancellation.pdf}
+\caption{Ligne dividende, ligne repo et leur total quand le panel dividendes Totem se déplace (portefeuille A à
+gauche, B à droite). Points : réévaluation complète. Pour une exposition linéaire en forward, le total est plat
+(\cref{thm-control,thm-exact}) ; le swap de dividendes ajoute une véritable exposition aux dividendes dont la ligne est
+exactement $g\cdot\Delta L$.}
+\label{fig-cancellation}
+\end{figure}
+
+\begin{example}[Matérialité]\label{ex-materiality}
+Avec une dispersion de consensus dividendes de $5\,\%$ de chaque période, dix contributeurs et une corrélation
+$e^{-|\Delta y|/2}$ entre périodes, la \cref{prop-materiality} donne
+\begin{center}\input{generated/\lang/tab_materiality}\end{center}
+\vMatA{} de l'incertitude de la ligne dividende se compense pour le portefeuille A ; \vMatB{} et \vMatC{} pour B et C.
+\end{example}
+
+\subsection{Quand la répartition compte}
+L'exposition non-forward $g$ est non nulle pour les swaps et futures de dividendes (dividende pur), pour l'emprunt de
+titres et les jambes de financement des swaps de rendement total (repo pur), pour l'exercice américain (la frontière
+d'exercice anticipé dépend séparément des dividendes et du repo) et pour les exotiques valorisés avec une dynamique de
+dividendes discrets (le modèle de dividendes modifie la volatilité du spot). Pour ces portefeuilles, la répartition
+doit être contrôlée directement, et la qualité de la courbe de repo implicite (\cref{sec-detection}) compte.
+
+\begin{insight}
+\begin{itemize}[leftmargin=12pt]
+\item Contrôler la \emph{ligne forward} et la \emph{ligne non-forward} : la première n'a besoin que des forwards Totem
+et des dividendes FO ; la seconde n'a besoin des dividendes Totem que là où $g\neq0$.
+\item Des lignes dividende et repo importantes qui se compensent, avec un total faible, sont un artefact de répartition.
+\item En valorisation prudente~\cite{eu2016}, si les incertitudes sont agrégées par paramètre de valorisation sans
+compensation, un artefact de répartition est compté deux fois ; définir le paramètre comme le forward là où $g\approx0$
+supprime ce double comptage.
+\end{itemize}
+\end{insight}

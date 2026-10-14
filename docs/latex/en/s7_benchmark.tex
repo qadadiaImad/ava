@@ -1,0 +1,155 @@
+\section{Benchmark on a synthetic Totem market}\label{sec-benchmark}
+
+\subsection{Design}
+The synthetic market is built from contributors, so that every mechanism of \cref{sec-anatomy} arises the way it
+does in Totem rather than as a shape added to a curve.
+
+\paragraph{Categories.} Four categories with eleven Totem expiries from one month to five years and six dividend
+periods (the rest of 2026, then 2027 to 2031); valuation date 14 October 2026.
+\begin{center}\input{generated/\lang/tab_categories}\end{center}
+
+\paragraph{Contributors.} The option and dividend panels are drawn independently. Each contributor holds
+internally consistent views (\cref{ass-consistent}): dividends with a persistent factor plus per-dividend noise, with a
+dispersion that grows with time, and a smooth repo curve (level plus tilt). Option contributors price calls and puts at
+five strikes with their own forward, a skewed volatility surface, volatility noise and price noise. Panels shrink with
+tenor and are nested.
+
+\paragraph{Consensus and pipeline.} The consensus is the mean after a median/MAD screen; dispersions and counts are
+reported as Totem would. The controller pipeline then runs unchanged: parity forwards, allocation on the FO ex-date
+profile, bootstrap, covariance, detection.
+
+\paragraph{FO marks.} True dividends with $1\%$ noise and the true repo with a $3$\,bp level error (one standard
+deviation).
+
+\paragraph{Scenarios.} Each test name is simulated under every scenario with the same seed, so differences between
+scenarios are paired.
+\begin{center}\small
+\begin{tabular}{p{4.0cm}p{7.4cm}p{3.2cm}}
+\toprule
+Scenario & Injection & Magnitude\\
+\midrule
+Spot snapshot mismatch & option contributors price off a different spot & $\pm0.03\%$ to $\pm0.15\%$\\
+Dividend bucket error & one period (2027--2029) off in the dividend consensus & $\pm0.15$ to $\pm0.5$ per $100$ of spot\\
+Ex-date timing split & $35$--$70\%$ of the option panel moves the dividend closest to an expiry to its other side & one dividend\\
+Stale ex-date profile & allocation profile shifted so that one dividend crosses an expiry & $3$--$20$ days past it\\
+Forward outlier & consensus calls at one expiry shifted & $3$--$6$ s.d.\ of the carry noise\\
+Biased long-dated sub-panel & contributors who remain after the largest panel drop are biased on later dividends & $\pm8\%$ to $\pm20\%$\\
+FO repo mismark & FO repo shifted in parallel, Totem untouched & $\pm15$ to $\pm50$\,bp\\
+Gross/net bias & every Totem period scaled & $\pm8\%$ to $\pm18\%$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Detectors.} (1) Naive gap: largest $|\Delta b|$ over the pillars. (2) Naive shape: largest deviation of the
+Totem-implied repo from the interpolation of its two neighbours. (3) B-spline plus Gaussian mixture on the Totem curve:
+least-squares cubic B-spline coefficients (six, knots in $\ln T$) clustered by a Gaussian mixture per category with the
+number of components chosen by BIC; the score is the negative log-likelihood. (4) The same on the Totem--FO
+difference. (5) The structural detector of \cref{sec-detection}.
+
+\paragraph{Protocol.} \vNTrain{} clean names per category calibrate every detector to \vFPR{} false alarms (a quantile
+of the score for the baselines, $\kappa$ and the level scale for the structural detector). \vNTestPerCat{} fresh names
+per category are then simulated under each of the \vNScen{} scenarios, \vNTest{} test names in total. Because the
+design is paired, the signal-to-noise of an injection is computed exactly as $\lambda=\|PL^{-1}(y^{\text{scenario}}-y^{\text{clean}})\|$,
+the quantity of \cref{cor-power}.
+
+\subsection{Results}
+\begin{table}[ht]
+\centering
+\caption{Share of names flagged, every detector calibrated to \vFPR{} false alarms on clean history. The clean row is
+the realised false-alarm rate on fresh names. For the FO mismark and the gross/net bias a flag is not the desired
+outcome (see text). Columns: naive gap, naive shape, B-spline plus Gaussian mixture on the curve and on the Totem--FO
+difference, structural detector.}\label{tab-detection}
+\input{generated/\lang/tab_detection}
+\end{table}
+
+\begin{figure}[ht]
+\centering\includegraphics[width=\linewidth]{figures/\lang/detection.pdf}
+\caption{Share of names flagged per scenario and detector (the data of \cref{tab-detection}).}
+\label{fig-detection}
+\end{figure}
+
+\begin{figure}[ht]
+\centering\includegraphics[width=\linewidth]{figures/\lang/power.pdf}
+\caption{Detection rate against the signal-to-noise ratio $\lambda$ of the injected anomaly, pooled over the six
+Totem-side anomalies; $n$ is the number of names per bin. The grey line is the theoretical power of a single known
+template at the typical family-wise threshold (\cref{cor-power}).}
+\label{fig-power}
+\end{figure}
+
+\begin{table}[ht]
+\centering
+\caption{Area under the ROC curve against the clean names (ranking quality, independent of the threshold).}\label{tab-auc}
+\input{generated/\lang/tab_auc}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\caption{Structural detector: share of names flagged per scenario and category.}\label{tab-bycat}
+\input{generated/\lang/tab_bycat}
+\end{table}
+
+\begin{figure}[ht]
+\centering\includegraphics[width=\linewidth]{figures/\lang/attribution.pdf}
+\caption{Mechanism named first by the structural detector, per scenario. Level, step, spike and season are the template
+families; roughness means the global test fired without a template; no alarm means the name was not flagged.}
+\label{fig-attribution}
+\end{figure}
+
+\begin{table}[ht]
+\centering
+\caption{Structural detector: detection, attribution (the first explanation names the injected mechanism and its
+location) and FO-mismark flags.}\label{tab-attribution}
+\input{generated/\lang/tab_attribution}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\caption{Realised false-alarm rate on fresh clean names, by category (target \vFPR), and the calibrated $\kappa$.}\label{tab-fpr}
+\input{generated/\lang/tab_fpr}
+\end{table}
+
+\subsection{Reading the results}
+\begin{itemize}
+\item \textbf{Average detection does not separate the best methods.} Over the six Totem-side anomalies the structural
+detector flags \vMeanStruct{} of names, B-spline plus GMM on the difference \vMeanGmmDiff, on the curve \vMeanGmmCurve,
+the naive shape check \vMeanShape{} and the naive gap \vMeanNaive.
+\item \textbf{Forward outliers} are where carry space and the noise model pay most: \vFwdStruct{} detected against
+\vFwdNaive{} for the naive gap, which cannot see a three-to-six standard deviation outlier at a long expiry under the
+long-end noise, and \vFwdShape{} for the naive shape check.
+\item \textbf{Spot mismatches} (\vSpotStruct) and \textbf{stale ex-date profiles} (\vSeasonStruct) are easy for every
+method; the structural detector adds the explanation (\cref{fig-attribution}).
+\item \textbf{Dividend bucket errors} (\vBucketStruct{} against \vBucketNaive{} naive) are limited by their size: an
+error of $0.15$ to $0.5$ per $100$ of spot is small next to long-dated dividend dispersion, and \cref{fig-power} shows
+that the misses are low signal-to-noise cases.
+\item \textbf{Ex-date timing splits} are detected in \vTimingStruct{} of names; the naive shape check (\vTimingShape) is
+competitive because these spikes are large in repo space.
+\item \textbf{A biased long-dated sub-panel} is close to non-identifiable for every method (\vPanelStruct{} structural,
+\vPanelNaive{} naive gap): the bias builds up smoothly after the panel drop and mostly projects onto a repo slope. This
+is \cref{thm-nonid} at work, not a tuning issue.
+\item \textbf{Genuine FO mismarks} are kept apart from bad Totem curves: \vFoStruct{} raise an anomaly (the clean rate)
+and \vFoMismark{} are reported as FO-mismark candidates, against \vFoClean{} of clean names. The naive gap and GMM on the
+difference raise a bad-curve alarm on \vFoNaive{} and \vFoGmmDiff{} of them. The FO-mismark test finds
+\vFoMismarkEuStock{} of the mismarks on EU stocks and \vFoMismarkIndex{} on the index, but only \vFoMismarkHtb{} on
+hard-to-borrow names: there contributors' repo views differ by about $60$\,bp, so a $15$--$50$\,bp FO difference is within
+the uncertainty of the consensus itself.
+\item \textbf{Gross/net bias} is flagged in \vGrossStruct{} of names, mostly as steps at ex-dates for discrete payers;
+for an index dividend stream it looks like a repo slope and is reported through $\beta$ instead
+(\cref{prop-gross}).
+\item \textbf{Power.} Between signal-to-noise $4$ and $6$ the structural detector finds \vPowStructE{} of anomalies,
+above $6$ \vPowStructF{} to \vPowStructH, close to the theory of \cref{cor-power}. Below $3$ the naive gap and GMM on the
+difference detect more (\vPowGmmDiffC{} against \vPowStructC{} between $2$ and $3$): they also react to the part of an
+anomaly that looks like a smooth repo difference, which the structural detector leaves to the FO-mismark test on
+purpose. That same property is why they raise alarms on genuine FO mismarks.
+\item \textbf{Attribution.} When the structural detector flags a Totem anomaly, its first explanation names the
+injected mechanism and location in \vAttr{} of cases.
+\end{itemize}
+
+\subsection{Limits of the evidence}
+\begin{caveat}
+The synthetic market reproduces the mechanisms by construction; it does not show that real Totem data contains only
+these. Real data will also carry stale contributors, corporate actions and special dividends, American exercise in
+single-stock quotes and data-entry errors. The scale $\kappa$ absorbs a misspecified noise level but not a misspecified
+structure, and the magnitudes, while plausible, are not calibrated to any particular history. The benchmark shows that
+the method works when the mechanisms are present and is calibrated when they are not; validation on twelve to
+twenty-four months of real snapshots with labelled incidents is the next step.
+\end{caveat}

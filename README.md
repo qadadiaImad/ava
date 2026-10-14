@@ -8,6 +8,8 @@ This repository holds the methodology note and a Python prototype:
 
 - **Report:** [`docs/totem_repo_control.pdf`](docs/totem_repo_control.pdf). It covers the mechanisms, the
   div-agnostic control identity, the structural detector, the benchmark results and the production inputs.
+- **Theory notes with proofs (LaTeX):** [`docs/totem_repo_theory_en.pdf`](docs/totem_repo_theory_en.pdf) (English)
+  and [`docs/totem_repo_theorie_fr.pdf`](docs/totem_repo_theorie_fr.pdf) (French). Sources are in `docs/latex/`.
 - **Package:** `repo_control`, which needs only numpy and scipy.
 
 ## What the prototype does
@@ -29,6 +31,7 @@ pip install -e .[benchmark,report,dev]
 pytest                                                   # 22 tests
 python scripts/run_benchmark.py                          # ~5 min, writes results/benchmark.json.gz
 PYTHONPATH=. python scripts/build_report.py              # writes docs/totem_repo_control.pdf
+PYTHONPATH=. python scripts/build_latex.py               # writes the EN and FR theory notes (needs TeX Live)
 ```
 
 On real data, build a `TotemSnapshot` and an `FOSnapshot` (see `repo_control/pipeline.py`). Then call

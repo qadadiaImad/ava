@@ -1,0 +1,70 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage[group-separator={,}]{siunitx}
+\newcommand{\pct}[1]{\num{#1}\%}
+\newcommand{\NTheorem}{Theorem}
+\newcommand{\NProposition}{Proposition}
+\newcommand{\NLemma}{Lemma}
+\newcommand{\NCorollary}{Corollary}
+\newcommand{\NDefinition}{Definition}
+\newcommand{\NAssumption}{Assumption}
+\newcommand{\NExample}{Example}
+\newcommand{\NRemark}{Remark}
+\newcommand{\NInsight}{Insight}
+\newcommand{\NCaveat}{Caveat}
+\newcommand{\shorttitle}{Totem-implied repo: theory, control and detection}
+\newcommand{\draftname}{Draft for discussion}
+\newcommand{\lang}{en}
+\input{preamble}
+\usepackage[colorlinks=true,linkcolor=accent,citecolor=accent,urlcolor=accent]{hyperref}
+\usepackage[nameinlink,capitalise]{cleveref}
+\input{theorems}
+\crefname{assumption}{Assumption}{Assumptions}
+\crefname{example}{Example}{Examples}
+\crefname{remark}{Remark}{Remarks}
+\crefname{algorithm}{Algorithm}{Algorithms}
+\input{generated/en/values}
+
+\title{\textbf{Totem-Implied Repo}\\[4pt]\large Theory, div-agnostic control and the detection of bad curves\\[2pt]
+\normalsize A technical note with proofs, worked examples and a synthetic benchmark}
+\author{Independent Price Verification -- Equity Derivatives}
+\date{14 October 2026 \quad\textbullet\quad Draft for discussion}
+
+\begin{document}
+\maketitle
+\thispagestyle{empty}
+
+\begin{abstract}
+\noindent Repo parameters used for independent price verification are implied from Totem: forwards from
+consensus call and put prices, dividends from the separate Totem dividend service. Because the two services are
+fed by different contributor panels whose sizes change with tenor, the implied repo curve inherits noise and
+artefacts from both, and sometimes shows shapes the market does not justify. This note gives (i)~an exact
+decomposition of the implied repo into the option panel's repo and a \emph{panel gap}, with the noise, jump and
+bias it produces for each mechanism; (ii)~a non-identifiability theorem stating that no method using consensus
+data alone can remove that gap; (iii)~a control identity proving that the total of the dividend and repo control
+lines does not depend on the dividend panel for forward-linear exposure, together with a materiality measure
+computed from sensitivities alone; (iv)~a structural detector built from matched filters and a generalised
+likelihood-ratio test, calibrated on clean history, that names the mechanism behind each alarm and repairs the
+curve; and (v)~a benchmark on a contributor-level synthetic Totem market comparing it with naive checks and with
+B-spline plus Gaussian-mixture clustering. Every statement is proved, illustrated by a worked example and checked
+in the accompanying Python package.
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+\input{en/s1_introduction}
+\input{en/s2_model}
+\input{en/s3_anatomy}
+\input{en/s4_control}
+\input{en/s5_noise}
+\input{en/s6_detection}
+\input{en/s7_benchmark}
+\input{en/s8_alternatives}
+\input{en/s9_operations}
+\appendix
+\input{en/sA_appendix}
+\input{en/references}
+\end{document}

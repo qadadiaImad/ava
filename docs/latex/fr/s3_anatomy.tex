@@ -1,0 +1,218 @@
+\section{Anatomie du repo implicite}\label{sec-anatomy}
+
+\subsection{L'écart de panel}
+Pour un pilier $T$, on note $\bA(T)$ et $\DA(T)$ les moyennes des vues de repo et de dividendes sur le panel options,
+et $\DB(T)$ le consensus dividendes du panel dividendes après allocation. Les vues sont des perturbations d'un centre
+commun, $b_j=b_0+\delta b_j$ et $D_j=D_0+\delta D_j$, d'ordre $\delta$.
+
+\begin{proposition}[Décomposition par écart de panel]\label{prop-gap}
+Sous les \cref{ass-consistent,ass-panels,ass-consensus},
+\begin{equation}\label{eq-gap}
+b^\T(T)=\bA(T)+\frac{\DA(T)-\DB(T)}{T\,\bigl(S-D_0(T)\bigr)}+O(\delta^2).
+\end{equation}
+\end{proposition}
+\begin{proof}
+Pour $j\in\Aset$, le \cref{lem-additivity} donne $\ln F_j=\ln F_0-T\,\delta b_j-\delta D_j/(S-D_0)+O(\delta^2)$. Le
+forward de consensus est la moyenne des $F_j$, et le logarithme d'une moyenne égale la moyenne des logarithmes à un
+terme de variance d'ordre $\delta^2$ près, d'où
+$\ln\overline{F}=\ln F_0-T\,\overline{\delta b}_{\Aset}-\overline{\delta D}_{\Aset}/(S-D_0)+O(\delta^2)$. Le contrôleur
+alloue le consensus dividendes, $\DB=D_0+\overline{\delta D}_{\Bset}$, et applique le bootstrap :
+$B^\T=R-\ln\overline{F}+\ln(S-\DB)
+=B_0+T\,\overline{\delta b}_{\Aset}+\bigl(\overline{\delta D}_{\Aset}-\overline{\delta D}_{\Bset}\bigr)/(S-D_0)+O(\delta^2)$.
+On divise par $T$ et on utilise $b_0+\overline{\delta b}_{\Aset}=\bA$.
+\end{proof}
+
+Le repo implicite est le repo propre au panel options plus un \emph{écart de panel} : la différence entre la vue
+dividendes des contributeurs options, jamais observée, et celle du panel dividendes, divisée par $T(S-D)$. Pour un
+contributeur donné, les erreurs sur le forward et sur les dividendes se compensent dans le repo implicite ; entre deux
+panels, elles ne se compensent pas.
+
+\begin{corollary}[Taille de l'écart]\label{cor-gap}
+Supposons les erreurs de vue dividendes en $T$ i.i.d.\ de variance $\sigma_D^2(T)$ dans les deux populations, et
+supposons que les deux panels partagent $m$ contributeurs qui utilisent la même vue dividendes dans les deux services.
+Alors
+\begin{equation}\label{eq-gap-sd}
+\sd\bigl[b^\T-\bA\bigr]=\frac{\sigma_D(T)}{T\,(S-D(T))}\sqrt{\frac1{n_A}+\frac1{n_B}-\frac{2m}{n_An_B}}.
+\end{equation}
+\end{corollary}
+\begin{proof}
+$\DA-\DB=\sum_j(a_j-c_j)\,\delta D_j$ avec $a_j=1/n_A$ sur $\Aset$, $c_j=1/n_B$ sur $\Bset$ et zéro ailleurs. Sa variance
+vaut $\sigma_D^2\sum_j(a_j-c_j)^2=\sigma_D^2\bigl[m(1/n_A-1/n_B)^2+(n_A-m)/n_A^2+(n_B-m)/n_B^2\bigr]$, qui se simplifie
+en $\sigma_D^2\,(1/n_A+1/n_B-2m/(n_An_B))$.
+\end{proof}
+
+Avec des panels identiques ($m=n_A=n_B$), l'écart disparaît ; avec des panels disjoints, il est maximal. La
+dispersion $\sigma_D(T)$ d'un dividende cumulé croît avec $T$, à peu près comme $T$ ou plus vite : l'écart est donc
+faible en portage sur le court terme mais ne diminue pas en repo sur le long terme.
+
+\begin{example}[Taille de l'écart pour une action]\label{ex-gap}
+Spot $100$, rendement en dividendes de $4\,\%$, dispersion des contributeurs de $1\,\%+3\,\%\cdot T$ du dividende
+cumulé, tailles de panel de la catégorie synthétique « action UE ». La formule \eqref{eq-gap-sd} avec $m=0$ et une
+simulation contributeur par contributeur sans désaccord sur le repo donnent
+\begin{center}\input{generated/\lang/tab_gap}\end{center}
+À un an, si six contributeurs étaient communs aux deux services ($m=6$, $n_A=15$, $n_B=12$), l'écart passerait de
+$6{,}5$ à $4{,}8$\,pb.
+\end{example}
+
+\begin{figure}[ht]
+\centering\includegraphics[width=\linewidth]{figures/\lang/panel_gap.pdf}
+\caption{(a) Bruit de repo dû au seul écart de panel, \cref{eq-gap-sd}, pour trois configurations de panels. (b) Un
+décalage de spot $\varepsilon$ est constant en portage et se lit donc $\varepsilon/T$ en repo (\cref{prop-spot}).}
+\label{fig-gap}
+\end{figure}
+
+\subsection{Sortie de contributeurs}
+\begin{proposition}[Moyennes de panels emboîtés]\label{prop-nested}
+Soit $e_{jk}$ l'erreur du contributeur $j$ à la maturité $k$, indépendante d'un contributeur à l'autre, avec
+$\Var e_{jk}=\sigma_k^2$ et $\Cov(e_{jk},e_{jl})=\rho_{kl}\sigma_k\sigma_l$. Si les panels sont emboîtés, de tailles
+$n_k$, les moyennes $\bar e_k$ vérifient
+\begin{equation}\label{eq-nested}
+\Cov(\bar e_k,\bar e_l)=\frac{\rho_{kl}\,\sigma_k\sigma_l}{\max(n_k,n_l)}.
+\end{equation}
+En particulier, avec des vues persistantes ($\rho=1$, $\sigma_k=\sigma_l=\sigma$) et $n_l\le n_k$,
+$\sd(\bar e_l-\bar e_k)=\sigma\sqrt{1/n_l-1/n_k}$.
+\end{proposition}
+\begin{proof}
+$\Cov(\bar e_k,\bar e_l)=\frac{1}{n_kn_l}\sum_{j\le\min(n_k,n_l)}\rho_{kl}\sigma_k\sigma_l
+=\frac{\min(n_k,n_l)}{n_kn_l}\rho_{kl}\sigma_k\sigma_l$, et $\min/(n_kn_l)=1/\max$. Ensuite
+$\Var(\bar e_l-\bar e_k)=\sigma^2(1/n_l+1/n_k-2/n_k)=\sigma^2(1/n_l-1/n_k)$.
+\end{proof}
+
+\begin{example}
+En unités de dispersion des contributeurs, le consensus saute de lui-même de $\vJumpA\,\sigma$ quand un panel passe
+de $16$ à $12$ contributeurs, de $\vJumpB\,\sigma$ de $12$ à $7$, de $\vJumpC\,\sigma$ de $15$ à $7$ et de
+$\vJumpD\,\sigma$ de $10$ à $4$. Un saut de cette taille lors d'une sortie de contributeurs est du bruit, pas une
+information ; le modèle de bruit de la \cref{sec-noise} le reproduit grâce à \cref{eq-nested}.
+\end{example}
+
+\subsection{Désaccords sur la date de détachement}
+\begin{proposition}[Désaccord de date]\label{prop-timing}
+Soit un dividende $d_i$ détaché en $t_i\in(T_k,T_{k+1})$ dans l'allocation des dividendes, et supposons qu'une fraction
+$p$ du panel options le place avant $T_k$ (tous le placent avant $T_{k+1}$). En notant $\tilde d_i=d_i/G(t_i)$, au premier
+ordre :
+\begin{enumerate}[label=(\roman*)]
+\item l'écart de portage ne bouge qu'en $T_k$ : $\delta y_k=p\,\tilde d_i/(S-D_k)$, soit un pic de repo
+$p\,\tilde d_i/\bigl(T_k(S-D_k)\bigr)$ ;
+\item en repo forward entre piliers, c'est un dipôle : $+\delta y_k/(T_k-T_{k-1})$ puis $-\delta y_k/(T_{k+1}-T_k)$ ;
+\item la variance des log-forwards des contributeurs en $T_k$ augmente de $p(1-p)\,\tilde d_i^{\,2}/(S-D_k)^2$.
+\end{enumerate}
+\end{proposition}
+\begin{proof}
+(i) En $T_k$, une fraction $p$ du panel options inclut le dividende, donc $\ln\overline{F}_k$ baisse de
+$p\,\tilde d_i/(S-D_k)$ (\cref{lem-additivity}) tandis que le $D^\T_k$ alloué l'exclut ; par \cref{eq-additivity},
+$B^\T_k$ augmente d'autant. Avant $T_k$ personne n'inclut le dividende, après $T_{k+1}$ tout le monde l'inclut :
+aucun autre pilier ne bouge. (ii) Le repo forward est la pente de $B$ entre piliers. (iii) Formule de la variance
+totale : les contributeurs forment deux groupes dont les log-forwards moyens diffèrent de $\tilde d_i/(S-D_k)$, de poids
+$p$ et $1-p$.
+\end{proof}
+
+\begin{example}\label{ex-timing}
+Dans l'exemple de la \cref{fig-gallery}(c), un dividende de $2{,}18$ est détaché $17$ jours après l'échéance à six mois,
+et $37\,\%$ du panel options le placent avant. Le pic vaut $0{,}37\times2{,}18/(0{,}5\times98)\approx1{,}6\,\%$, soit
+environ $165$\,pb de repo sur un seul pilier. La dispersion des contributeurs à cette échéance est presque dix fois
+celle de ses voisines, conformément à (iii).
+\end{example}
+
+\subsection{Profil de détachement périmé}
+\begin{proposition}[Décalage de profil]\label{prop-profile}
+Supposons que les contributeurs options utilisent les vraies dates $t_i$, tandis que le profil d'allocation les
+place en $t_i+\Delta$. Alors, pour $\Delta>0$ (symétriquement pour $\Delta<0$),
+\[
+\delta y_k=\sum_{i:\,T_k\in[t_i,\,t_i+\Delta)}\frac{\tilde d_i}{S-D_k}\,:
+\]
+seuls bougent les piliers situés entre une vraie date de détachement et sa copie décalée.
+\end{proposition}
+\begin{proof}
+$D^\T_k-D_k=\sum_i\tilde d_i\bigl(\one\{t_i+\Delta\le T_k\}-\one\{t_i\le T_k\}\bigr)$, qui vaut $-\tilde d_i$ exactement
+lorsque $t_i\le T_k<t_i+\Delta$ ; on applique \cref{eq-additivity}.
+\end{proof}
+Pour les payeurs saisonniers, les piliers touchés reviennent chaque année (par exemple les échéances d'avril des
+actions européennes), ce qui produit le zigzag que les contrôleurs reconnaissent. Les fins de période ne sont jamais
+touchées, car les totaux par période sont justes.
+
+\subsection{Erreurs sur une période de dividendes}
+\begin{proposition}[Erreur de période]\label{prop-bucket}
+Si le niveau Totem de la période $y$ est erroné de $\delta L$, alors $\delta y_k=-A_{ky}\,\delta L/(S-D_k)$. Pour une
+période à une seule date de détachement, c'est une marche qui commence au premier pilier après le détachement ; en
+repo, c'est un saut qui décroît comme $1/T$.
+\end{proposition}
+\begin{proof}
+Le \cref{lem-allocation} donne $\delta D_k=A_{ky}\delta L$ ; on applique \cref{eq-additivity} à forwards inchangés.
+$A_{ky}$ est nul avant le détachement et constant ($\approx1/G(t_i)$) après.
+\end{proof}
+
+\subsection{Décalage du spot et dividendes proches}
+\begin{proposition}[Décalage du spot]\label{prop-spot}
+Si les contributeurs options valorisent avec un spot $S(1+\varepsilon)$ alors que le contrôleur utilise $S$,
+\begin{equation}\label{eq-spot}
+y_k=-\ln\Bigl(1+\frac{\varepsilon S}{S-D_k}\Bigr)\approx-\frac{\varepsilon S}{S-D_k}\qquad\text{pour tout }k,
+\end{equation}
+quasi constant d'un pilier à l'autre (exactement constant sans dividende), donc une erreur de repo proche de
+$-\varepsilon/T_k$. Un dividende antérieur au premier pilier, erroné de $\delta d$, produit la même signature,
+$-\delta\tilde d/(S-D_k)$.
+\end{proposition}
+\begin{proof}
+Le forward de chaque contributeur devient $G(S(1+\varepsilon)-D)$, donc $\ln\overline{F}_k$ varie de
+$\ln\bigl((S(1+\varepsilon)-D_k)/(S-D_k)\bigr)$ ; par \cref{eq-additivity}, $B^\T_k$ varie de l'opposé. Pour le
+dividende proche, $D_k$ varie de $\delta\tilde d$ à tous les piliers.
+\end{proof}
+
+\subsection{Définitions brut/net et biais proportionnels}
+\begin{proposition}[Biais proportionnel sur les dividendes]\label{prop-gross}
+Si chaque dividende Totem vaut $(1+\tau)$ fois le dividende contenu dans les forwards (par exemple brut contre net de
+retenue à la source), alors $y_k\approx-\tau D_k/(S-D_k)$. Pour un rendement continu $q$, $D_k\approx SqT_k$ et
+$y_k\approx-\tau q\,T_k$, qui a exactement la forme d'un écart de niveau de repo de $-\tau q$.
+\end{proposition}
+\begin{proof}
+$\delta D_k=\tau D_k$ dans \cref{eq-additivity} ; pour un rendement, $D_k=S(1-e^{-qT_k})\approx SqT_k$ et $S-D_k\approx S$.
+\end{proof}
+
+\subsection{Ce que les données ne peuvent pas dire}
+\begin{theorem}[Non-identifiabilité de la répartition]\label{thm-nonid}
+Supposons que les prix d'options européennes ne dépendent des vues d'un contributeur qu'à travers ses forwards. Pour
+toute transformation au niveau des contributeurs $(b_j,D_j)\mapsto(b_j+\delta_j,D'_j)$ avec
+$\delta_j(T)\,T=\ln(S-D'_j(T))-\ln(S-D_j(T))$, tous les prix d'options, et donc toutes les statistiques du panel options
+(consensus, dispersion, nombre), sont inchangés ; les statistiques du panel dividendes le sont aussi. Le repo implicite
+$b^\T$, fonction de ces statistiques, est donc inchangé, alors que le repo du panel options $\bA$ varie de la moyenne
+des $\delta_j$. Par conséquent, l'écart de panel $b^\T-\bA$ n'est pas une fonction des données observables.
+\end{theorem}
+\begin{proof}
+La transformation laisse $\ln F_j=R-B_j+\ln(S-D_j)$ inchangé pour tout $j$ et tout $T$ ; les prix d'options de chaque
+contributeur sont donc inchangés, ainsi que toute statistique calculée à partir d'eux. Le panel dividendes n'est pas
+touché. $b^\T$ n'est calculé qu'à partir de ces statistiques, il est donc inchangé, alors que $\bA$ se déplace de la
+moyenne des $\delta_j$, qui peut prendre n'importe quelle valeur.
+\end{proof}
+
+\begin{corollary}
+Aucun estimateur construit à partir des seules données de consensus Totem (lissage de courbe, regroupement, réseaux de
+neurones) ne peut supprimer l'écart de panel. Il reste possible d'en modéliser la taille (\cref{sec-noise}), de
+reconnaître les mécanismes structurés à leur signature (\cref{sec-detection}) et de se passer de la répartition là où
+l'exposition ne l'exige pas (\cref{sec-control}).
+\end{corollary}
+
+\begin{remark}[Ce qui lève l'indétermination]
+Les options américaines portent un peu d'information sur la répartition à travers l'exercice anticipé ; des
+contributeurs communs réduisent l'écart (\cref{cor-gap}) ; des ancres externes fixent directement l'un des deux
+côtés : contrats à terme cotés sur dividendes, contrats à terme de rendement total qui cotent un spread de financement,
+commissions de prêt-emprunt de titres pour le court terme des actions.
+\end{remark}
+
+\begin{insight}
+Résumé des signatures dans l'espace de portage (gabarits du détecteur entre crochets) :
+\begin{center}\small
+\begin{tabular}{p{4.3cm}p{4.9cm}p{4.4cm}}
+\toprule
+Mécanisme & Écart de portage $y$ & Écart de repo\\
+\midrule
+Écart de panel (\ref{prop-gap}) & bruit lisse plus incréments aux détachements & bruit à peu près plat en maturité\\
+Sortie de contributeurs (\ref{prop-nested}) & marche à la sortie [marche] & saut décroissant en $1/T$\\
+Désaccord de date (\ref{prop-timing}) & un pilier [pic] & pic, dipôle en repo forward\\
+Profil périmé (\ref{prop-profile}) & piliers en saison [saison, pic] & zigzag\\
+Erreur de période (\ref{prop-bucket}) & marche après le détachement [marche] & saut décroissant en $1/T$\\
+Décalage du spot (\ref{prop-spot}) & constante [niveau] & hyperbole $\varepsilon/T$\\
+Biais proportionnel (\ref{prop-gross}) & rampe de marches ; $\approx\beta T$ pour un rendement & marches ; un niveau pour un indice\\
+Erreur de marquage FO & $\delta b(T)\,T$ lisse [modèle nul] & niveau ou pente lisse\\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{insight}

@@ -1,0 +1,14 @@
+% Theorem environments: must come after amsthm, hyperref and cleveref.
+% ------------------------------------------------------------ theorems
+\theoremstyle{plain}
+\newtheorem{theorem}{\NTheorem}[section]
+\newtheorem{proposition}[theorem]{\NProposition}
+\newtheorem{lemma}[theorem]{\NLemma}
+\newtheorem{corollary}[theorem]{\NCorollary}
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{\NDefinition}
+\newtheorem{assumption}[theorem]{\NAssumption}
+\newtheorem{example}[theorem]{\NExample}
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{\NRemark}
+
