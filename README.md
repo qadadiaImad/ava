@@ -1,5 +1,7 @@
 # ava — Totem-implied repo: control and bad-curve detection
 
+**English** | [Français](README.fr.md)
+
 Repo parameters for independent price verification are implied from Totem: forwards from consensus call/put prices,
 dividends from the separate Totem dividend service. Because the two services have different contributor panels, the
 implied repo curve sometimes shows irregular shapes or jumps that the market does not justify.
