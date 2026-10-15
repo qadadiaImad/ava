@@ -1,0 +1,81 @@
+% Title, one-page summary, reading guide and table of contents.
+\thispagestyle{plain}
+\begin{center}
+{\color{accentdark}\rule{\linewidth}{0.8pt}}\\[10pt]
+{\LARGE\bfseries Totem-implied repo}\\[6pt]
+{\large Controlling the front-office repo and detecting bad curves}\\[8pt]
+{\normalsize\color{ink2} Methodology note \quad\textbullet\quad Independent price verification, equity
+derivatives}\\[2pt]
+{\normalsize\color{ink2} October 2026 \quad\textbullet\quad Draft for discussion}\\[4pt]
+{\color{accentdark}\rule{\linewidth}{0.8pt}}
+\end{center}
+
+\begin{bref}
+\textbf{The problem.} Independent price verification implies the repo curve from Totem: the forwards come from
+consensus call and put prices, the dividends from a separate Totem service. The two services do not have the same
+contributors, and their number changes with maturity; in our example, \vRunNoptShort{} option contributors and
+\vRunNdivShort{} dividend contributors at the short end, \vRunNoptLong{} and \vRunNdivLong{} at five years. The implied
+repo curve inherits the noise of both panels: it sometimes looks irregular, or jumps from one maturity to the next for
+no market reason. Yet this is the curve that, through the sensitivities, controls the front-office (FO) repo positions.
+
+\medskip
+\textbf{The three goals of the note.}
+\begin{description}[leftmargin=1.1cm,labelwidth=0.9cm,labelsep=0.2cm,itemsep=1pt]
+\item[G1] \emph{Understand}: where do these shapes come from, and which ones are just normal noise?
+\item[G2] \emph{Control}: ``I have the forward control, I have the dividend control: how much is the repo control?''
+Can the repo position be controlled without depending on the dividend contributors?
+\item[G3] \emph{Detect}: how can a bad Totem curve be flagged automatically, its cause named, and the flag kept apart
+from an FO mismark?
+\end{description}
+
+\medskip
+\textbf{The answers.}
+\begin{description}[leftmargin=1.1cm,labelwidth=0.9cm,labelsep=0.2cm,itemsep=2pt]
+\item[A1] The implied repo equals the average repo of the option panel plus a \emph{panel gap}: the difference
+between two dividend averages taken over different contributors. For a European stock, this gap is commonly
+\vGapOneY\,bp at one year and \vGapFiveY\,bp at five years (\cref{sec-diagnostic}). No method that only sees Totem
+data can remove it; one can, however, compute its size and recognise, by their shape, the mechanisms that cause real
+anomalies.
+\item[A2] Repo line $=$ forward line $-$ dividend line $+$ non-forward line. For a book whose value depends on the
+forwards only (European options, forwards, futures), the non-forward line is zero: the total control does not depend on
+the dividend contributors, and it is exactly independent of them under full revaluation (\cref{sec-control}). An
+exposure vector computed from the FO sensitivities alone shows where the split between repo and dividends matters.
+\item[A3] The structural detector judges the Totem--FO difference ``in carry'', against a noise band computed from the
+dispersions and contributor counts that Totem publishes, and tests one typical shape per mechanism
+(\cref{sec-detection}). Its false alarm rate is fixed (\vFPR{} of clean names); every alarm comes with an explanation in
+natural units and a repaired curve. On a synthetic benchmark of \vNTest{} names (\cref{sec-benchmark}), it detects on
+average as much as the best alternative tested, B-spline plus Gaussian mixture (\vMeanStruct{} against
+\vMeanGmmDiff{}), finds forward outliers far better (\vFwdStruct{} against \vFwdGmmDiff{}), and does not mistake an FO
+mismark for a bad Totem curve (\vFoStruct{} alarms against \vFoGmmDiff{}).
+\end{description}
+\end{bref}
+
+\newpage
+\section*{How to read this note}
+Each section opens with its goal and closes with a ``Key points'' box. One synthetic name, the \emph{running example},
+illustrates the note from start to finish (green boxes): a European stock seen first in a clean market, then under eight
+different anomalies. Short proofs follow the statements; the longer ones are in \cref{app-proofs}.
+
+\begin{center}\small
+\begin{tabular}{>{\raggedright\arraybackslash}p{5.1cm}c>{\raggedright\arraybackslash}p{8.0cm}}
+\toprule
+Question & Section & What you will find\\
+\midrule
+What are we after, and why is it hard? & \ref{sec-problem} & The control chain, the $1/T$ magnifier, the running
+example\\
+Which notation? & \ref{sec-setup} & Forward, carry difference, Totem data, from Totem to the implied repo\\
+\textbf{G1} Where do bad curves come from? & \ref{sec-diagnostic} & The panel gap and its size, contributor
+drop-offs, six mechanisms and their signatures, what the data cannot tell\\
+\textbf{G2} How to control the repo? & \ref{sec-control} & The control identity, three books, how much the
+repo/dividend split matters\\
+\textbf{G3} How to detect? & \ref{sec-detection} & The noise model, the typical shapes, the test, the calibration,
+the diagnosis of the running example\\
+Does it work? And B-splines, mixtures, neural networks? & \ref{sec-benchmark} & The benchmark and the comparison with
+the starting ideas\\
+What to do in practice? & \ref{sec-reco} & Recommendations, data needed, monthly procedure\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+{\small\setcounter{tocdepth}{2}\tableofcontents}
+\newpage

@@ -1,0 +1,216 @@
+\section{Benchmark and comparison with other approaches}\label{sec-benchmark}
+
+\begin{objectif}
+Measure, on a synthetic Totem market built contributor by contributor, what the structural detector adds to naive
+checks and to the starting ideas: B-spline plus Gaussian mixture, small neural networks.
+\end{objectif}
+
+\subsection{Design}
+The synthetic market is built from the contributors up, so that each mechanism of \cref{sec-diagnostic} appears as it
+does in Totem, not as a shape added to a curve. Details are in \cref{app-synthetic}.
+\begin{itemize}
+\item \textbf{Four categories} (\cref{tab-categories}), eleven maturities from one month to five years, six dividend
+periods (the rest of 2026, then 2027 to 2031), valuation date 14~October 2026.
+\item \textbf{Contributors} have consistent views (\cref{hyp-coherent}): dividends made of a persistent factor and a
+noise specific to each dividend, whose dispersion grows with maturity, and a smooth repo curve. Option contributors
+price calls and puts at five strikes with their own forward and a noisy volatility surface. Panels shrink with
+maturity and are nested; option and dividend panels are drawn independently.
+\item \textbf{The consensus} is the mean after a median/median-absolute-deviation filter; dispersions and contributor
+counts are published as Totem would. The controller's pipeline then runs unchanged.
+\item \textbf{The FO marks} are the true dividends with a \pct{1} noise, and the true repo with a level error of
+$3$\,bp (one standard deviation).
+\item \textbf{The scenarios} (\cref{tab-scenarios}) are simulated for each test name with the same draw of
+contributors: differences between scenarios are paired, and the signal-to-noise ratio of each injection is known
+exactly.
+\end{itemize}
+
+\begin{table}[ht]
+\centering
+\caption{The four categories of the synthetic market.}\label{tab-categories}
+\input{generated/\lang/tab_categories}
+\end{table}
+
+\begin{table}[ht]
+\centering
+\caption{Benchmark scenarios. The first six are anomalies of the Totem curve; for the last two, a Totem anomaly alarm
+is not the desired outcome (see the text).}\label{tab-scenarios}
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{3.4cm}>{\raggedright\arraybackslash}p{7.5cm}
+>{\raggedright\arraybackslash}p{3.3cm}@{}}
+\toprule
+Scenario & Injection & Size\\
+\midrule
+Spot mismatch & the option contributors price off another spot & $\pm\pct{0.03}$ to $\pm\pct{0.15}$\\
+Error on one period & one period (2027 to 2029) wrong in the dividend consensus & $\pm\num{0.15}$ to $\pm\num{0.5}$ for
+a spot of $100$\\
+Ex-date disagreement & \pct{35} to \pct{70} of the option panel put the dividend closest to an expiry on its other side
+& one dividend\\
+Stale profile & allocation profile shifted so that a dividend crosses an expiry & $3$ to $20$ days beyond\\
+Forward outlier & consensus calls shifted at one expiry & $3$ to $6$ standard deviations of carry noise\\
+Biased long sub-panel & the contributors left after the largest drop-off are biased on later dividends &
+$\pm\pct{8}$ to $\pm\pct{20}$\\
+\midrule
+FO repo mismark & FO repo shifted in parallel, Totem intact & $\pm15$ to $\pm50$\,bp\\
+Gross/net bias & every Totem period multiplied by $1+\tau$ & $|\tau|$ from \pct{8} to \pct{18}\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Detectors.} Five detectors are compared:
+(1) \emph{naive gap}: the largest $|q^{\tot}_k-q^{\fo}_k|$;
+(2) \emph{naive shape}: the largest distance of the Totem repo from the interpolation of its two neighbours;
+(3) \emph{B-spline plus Gaussian mixture on the curve}: the six coefficients of a cubic B-spline fitted to the Totem
+curve (knots in $\ln T$), clustered by a Gaussian mixture per category whose number of components is chosen by BIC; the
+score is the negative log-likelihood;
+(4) \emph{the same on the Totem--FO difference};
+(5) \emph{the structural detector} of \cref{sec-detection}.
+
+\paragraph{Protocol.} \vNTrain{} clean names per category calibrate each detector to \vFPR{} false alarms (a score
+quantile for the first four; $\kappa$ and the level scale for the structural detector). Then \vNTestPerCat{} new names
+per category are simulated under each of the \vNScen{} scenarios, that is, \vNTest{} test names.
+
+\subsection{Results}
+\begin{table}[ht]
+\centering
+\caption{Share of names flagged, each detector being calibrated to \vFPR{} false alarms on clean history. The ``Clean''
+row is the false alarm rate realised on new names. For the last two rows before the mean, a Totem anomaly alarm is
+not the desired outcome.}\label{tab-detection}
+\input{generated/\lang/tab_detection}
+\end{table}
+
+\begin{figure}[ht]
+\centering\includegraphics[width=\linewidth]{figures/\lang/power.pdf}
+\caption{Detection rate as a function of the signal-to-noise ratio $\lambda$ of the injected anomaly, over the six
+Totem anomalies. The grey curve is the theoretical power of a known typical shape at the typical threshold
+(\cref{cor-power}).}
+\label{fig-power}
+\end{figure}
+
+\begin{figure}[ht]
+\centering\includegraphics[width=\linewidth]{figures/\lang/attribution.pdf}
+\caption{Mechanism named first by the structural detector, per scenario. Level, step, spike and season are the
+families of typical shapes; ``roughness'' means only the global test fired; ``no alarm'' that the name was not
+flagged.}
+\label{fig-attribution}
+\end{figure}
+
+\paragraph{Reading the results.}
+\begin{itemize}
+\item \textbf{On average, the best methods are level.} Over the six Totem anomalies, the structural detector flags
+\vMeanStruct{} of the names, the mixture on the difference \vMeanGmmDiff, on the curve \vMeanGmmCurve, the naive shape
+check \vMeanShape{} and the naive gap \vMeanNaive.
+\item \textbf{Forward outliers} are where carry space and the noise model pay off most: \vFwdStruct{} detected, against
+\vFwdNaive{} for the naive gap, which cannot see a three- to six-sigma outlier under the long-end noise, and
+\vFwdShape{} for the naive shape check.
+\item \textbf{Spot mismatches} (\vSpotStruct) and \textbf{stale profiles} (\vSeasonStruct) are easy for every method;
+the structural detector adds the explanation (\cref{fig-attribution}).
+\item \textbf{Errors on one period} (\vBucketStruct, against \vBucketNaive{} for the naive gap) are limited by their
+size: $\num{0.15}$ to $\num{0.5}$ for a spot of $100$ is small against the dispersion of distant dividends, and
+\cref{fig-power} shows that the misses have a low signal-to-noise ratio.
+\item \textbf{Ex-date disagreements} are detected in \vTimingStruct{} of cases; the naive shape check (\vTimingShape) is
+competitive, because these spikes are large in repo.
+\item \textbf{The biased long sub-panel} escapes every method (\vPanelStruct{} for the structural detector,
+\vPanelNaive{} for the naive gap): the bias builds up smoothly and blends into a repo slope. This is
+\cref{thm-nonid}, not a tuning problem.
+\item \textbf{Genuine FO mismarks} are not taken for bad Totem curves: \vFoStruct{} alarms (the clean rate), and
+\vFoMismark{} are flagged as possible FO mismarks, against \vFoClean{} of clean names. The naive gap and the mixture on
+the difference raise a bad-curve alarm on \vFoNaive{} and \vFoGmmDiff{} of them (\cref{prop-gmm-fo}). The mismark test
+finds \vFoMismarkEuStock{} of the errors on European stocks and \vFoMismarkIndex{} on the index, but only
+\vFoMismarkHtb{} on hard-to-borrow names: contributors' repo views there differ by about $60$\,bp, so an FO difference
+of $15$ to $50$\,bp stays within the uncertainty of the consensus itself.
+\item \textbf{The gross/net bias} is flagged in \vGrossStruct{} of cases, mostly as steps at the ex-dates of discrete
+payers; for an index dividend stream it looks like a repo slope (\cref{prop-signatures}, (vi)).
+\item \textbf{Power.} For a signal-to-noise ratio between $4$ and $6$, the structural detector finds \vPowStructE{} of
+the anomalies, and above $6$ from \vPowStructF{} to \vPowStructH, in line with \cref{cor-power}. Below $3$, the naive
+gap and the mixture on the difference detect more (\vPowGmmDiffC{} against \vPowStructC{} between $2$ and $3$): they
+also react to the part of an anomaly that looks like a smooth repo difference, which the structural detector
+deliberately leaves to the FO mismark test. The same property makes them flag genuine FO mismarks.
+\item \textbf{Explanation.} When the structural detector flags a Totem anomaly, its first explanation names the
+injected mechanism and its position in \vAttr{} of cases.
+\end{itemize}
+Results by category, areas under the ROC curve and realised false alarm rates are in \cref{app-results}.
+
+\subsection{What becomes of the starting ideas}
+\paragraph{B-spline plus Gaussian mixture.} The starting idea summarised each curve by its B-spline coefficients, by
+region and category, and clustered these coefficients with a Gaussian mixture. Two properties limit this approach.
+
+\begin{proposition}[What the coefficients do not see]\label{prop-leverage}
+Let $Z\in\M_{N,n_s}(\R)$ be the matrix of the $n_s$ B-spline functions at the pillars and $H=Z(\tr{Z}Z)^{-1}\tr{Z}$ the
+associated projection matrix. The least-squares fit of a unit spike $e_k$ has energy $\norm{He_k}^2=h_{kk}$, with
+$\sum_kh_{kk}=n_s$. A fraction $1-h_{kk}$ of the spike's energy stays in the residual and escapes every feature computed
+from the coefficients.
+\end{proposition}
+\begin{proof}
+$H$ is symmetric and idempotent, so $\norm{He_k}^2=\tr{e_k}He_k=h_{kk}$, and $\sum_kh_{kk}=\operatorname{tr}H=n_s$. The
+coefficients $(\tr{Z}Z)^{-1}\tr{Z}e_k$ determine $He_k$ and nothing else.
+\end{proof}
+
+For the benchmark's six cubic B-splines and eleven pillars:
+\begin{center}\input{generated/\lang/tab_leverage}\end{center}
+At interior pillars, the coefficients capture only \vLevMin{} to \vLevMax{} of a spike's energy, and the spline spreads
+what it captures over several coefficients. A single-pillar anomaly, the most frequent pattern, is diluted before the
+clustering even starts.
+
+\begin{proposition}[Why a mixture on the difference flags FO errors]\label{prop-gmm-fo}
+Take as features the coefficients $c=Z^+(q^{\tot}-q^{\fo})$, where $Z^+$ is the pseudo-inverse of $Z$. A parallel shift
+$u$ of the FO repo moves them by $-u\,Z^+\one$, a fixed direction. If the mixture is fitted on clean history, where
+Totem and the FO agree up to noise, its density decreases along this direction: its alarm rate on FO mismarks tends to
+$1$ as $|u|$ grows, whatever the quality of the Totem curve.
+\end{proposition}
+\begin{proof}
+$c$ is linear in $q^{\tot}-q^{\fo}$, which moves by $-u\one$. Every Gaussian component has finite variance along
+$Z^+\one$: the mixture density, and with it the likelihood score, goes to zero along this direction.
+\end{proof}
+The structural detector does not have this defect, because $X\beta$ contains the level difference: it is removed from
+every test and published separately. The benchmark confirms both statements (\vFoGmmDiff{} against \vFoStruct).
+
+\paragraph{Small neural networks per anomaly type.}
+\begin{proposition}[A network can only learn the matched filter]\label{prop-nn}
+After whitening and projection, $\eh\sim\N(0, \Pi)$ under $H_0$ and $\eh\sim\N(a\gt, \Pi)$ under $H_1$, for a known shape
+$g$ and size $a$. Then
+\begin{equation}\label{eq-nn}
+\ln\frac{\mathbb P(H_1\mid\eh)}{\mathbb P(H_0\mid\eh)}=a\sprod{\gt}{\eh}-\frac{a^2}{2}\norm{\gt}^2
++\ln\frac{\mathbb P(H_1)}{\mathbb P(H_0)},
+\end{equation}
+an affine function of the matched filter $\sprod{\gt}{\eh}$. A classifier trained by cross-entropy on enough data
+converges to this posterior probability; with an unknown size and sign, one recovers the statistic $|z_g|$ of
+\cref{thm-glrt}.
+\end{proposition}
+\begin{proof}
+The two Gaussian distributions have the same covariance: the quadratic terms of their ratio cancel. Cross-entropy is
+minimised by the true posterior probability; maximising \eqref{eq-nn} over $a$ gives $\sprod{\gt}{\eh}^2/(2\norm{\gt}^2)$.
+\end{proof}
+
+For the mechanisms one can name, a network can therefore at best learn the matched filter, which the structural
+detector writes down directly, with an exact false alarm rate and a known power.
+
+\paragraph{Where these tools remain useful.}
+\begin{itemize}
+\item \textbf{Penalised splines in the null model}, if $\beta_0+\beta_1\ln T$ turns out too rigid on real data.
+\item \textbf{Gaussian mixtures on the detector's outputs} ($\hat\beta_0$, $\hat\beta_1$, the $z_g$, $\norm{\eh}^2$, the
+dispersion ratios), to learn the usual regimes by region and category in a low-dimensional space where every
+coordinate has a meaning.
+\item \textbf{Region $\times$ category} to pool the calibration of $\kappa$ and of the level scale.
+\item \textbf{Neural networks}, once there is a history of labelled incidents and patterns the typical shapes do not
+cover; they should then be trained on the residuals $\eh$ and on synthetic injections, not on raw curves.
+\end{itemize}
+
+\subsection{Limits}
+\begin{attention}
+The synthetic market reproduces the mechanisms by construction; it does not show that real Totem data contain only
+these. Real data will also include stale contributors, corporate actions and special dividends, American exercise in
+single-stock quotes, and input errors. The scale $\kappa$ absorbs a misspecified noise level, not a misspecified
+structure, and the injected sizes, though plausible, are not calibrated to any history. The benchmark shows that the
+method works when the mechanisms are present and is calibrated when they are absent; validation on twelve to
+twenty-four months of real history, with labelled incidents, is the next step.
+\end{attention}
+
+\begin{retenir}
+\begin{itemize}[leftmargin=12pt]
+\item At equal false alarm rates, the structural detector detects as much as the best alternative on average, and
+clearly more on forward outliers.
+\item It does not take an FO mismark for a bad curve, unlike a Gaussian mixture on the Totem--FO difference, and it
+explains its alarms.
+\item B-splines, mixtures and neural networks remain useful, but downstream of the structural model, not on raw curves.
+\end{itemize}
+\end{retenir}

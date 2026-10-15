@@ -1,84 +1,272 @@
+\section{Proofs and complements}\label{app-proofs}
+
+\subsection{The bootstrap}\label{app-bootstrap}
+Fix $q_1, \dots, q_{k-1}$ and set $x=q_kT_k$. For a dividend going ex in $\intoc{T_{k-1}}{T_k}$, the interpolated
+cumulative repo is $q(t_i)\,t_i=q_{k-1}T_{k-1}+w_i\,(x-q_{k-1}T_{k-1})$, with
+$w_i=(t_i-T_{k-1})/(T_k-T_{k-1})\in\intoc{0}{1}$. The model forward at $T_k$ is therefore
+\begin{multline}\label{eq-fk}
+\mathcal F_k(x)=S_0\,e^{r_kT_k-x}-\sum_{t_i\le T_{k-1}}d_i\,e^{(r_kT_k-r(t_i)t_i)-(x-q(t_i)t_i)}\\
+-\sum_{T_{k-1}<t_i\le T_k}d_i\,e^{(r_kT_k-r(t_i)t_i)-(1-w_i)(x-q_{k-1}T_{k-1})} .
+\end{multline}
+
+\begin{lemma}[Monotonicity]\label{lem-monotone}
+For every $x$, $\mathcal F_k'(x)\le-\mathcal F_k(x)$. In particular, the function $x\mapsto\ln\mathcal F_k(x)-\ln F_k$
+has a derivative at most $-1$ where $\mathcal F_k>0$.
+\end{lemma}
+\begin{proof}
+Differentiating \eqref{eq-fk} term by term,
+\[
+\mathcal F_k'(x)=-S_0e^{(\cdot)}+\sum_{t_i\le T_{k-1}}d_ie^{(\cdot)}+\sum_{T_{k-1}<t_i\le T_k}(1-w_i)\,d_ie^{(\cdot)},
+\]
+where each exponential is that of the matching term of \eqref{eq-fk}. Every dividend term is positive and $1-w_i\le1$;
+replacing $1-w_i$ by $1$ can only increase the right-hand side, which then equals $-\mathcal F_k(x)$.
+\end{proof}
+
+\begin{proof}[Proof of \cref{prop-bootstrap}]
+As $x\to-\infty$,
+\[
+e^{x}\,\mathcal F_k(x)\longrightarrow e^{r_kT_k}\Bigl(S_0-\sum_{t_i\le T_{k-1}}d_i\,e^{-(r(t_i)-q(t_i))\,t_i}\Bigr)
+=e^{r_kT_k}\bigl(S_0-D_{k-1}\bigr)>0,
+\]
+because the terms of the current period only grow like $e^{-(1-w_i)x}$; so $\mathcal F_k(x)\to+\infty$. As $x$ grows,
+$\mathcal F_k$ decreases strictly while it is positive (\cref{lem-monotone}), then tends to $0$ or changes sign; by
+continuity, it takes every value in $\intoo{0}{+\infty}$ exactly once on the branch where it is positive. On that
+branch, $x\mapsto\ln\mathcal F_k(x)-\ln F_k$ is $C^2$ with a derivative of absolute value at least $1$: Newton's method
+converges quadratically near the root, and the bisection safeguard (keep a bracket of the root and fall back to its
+mid-point when the Newton step leaves it) makes the convergence global.
+\end{proof}
+
+\begin{example}[A bootstrap by hand]\label{ex-bootstrap}
+Spot $100$, flat rate \pct{3}, dividends of $\num{1.5}$ at $t=\num{0.30}$ and $\num{2.0}$ at $t=\num{0.80}$, pillars
+$\num{0.25}$, $\num{0.5}$ and $1$, true repo of $80$, $70$ and $60$\,bp. The forwards and the implied repo are:
+\begin{center}\input{generated/\lang/tab_boot}\end{center}
+At the third pillar, the Newton residual $|\ln\mathcal F_3(x)-\ln F_3|$ goes from \vNewtonA{} to \vNewtonB{} in one
+iteration, then to zero at machine precision at the next. With no dividend in the period, the function is affine and
+one iteration is enough.
+\end{example}
+
+\subsection{Put--call parity}\label{app-parity}
+\begin{lemma}[Heterogeneous discount factors]
+If contributor $j$ discounts with factor $B_j$, the zero of $\bar C-\bar P$ is $K^\ast=\sum_jB_jF_j\big/\sum_jB_j$, an
+average of the forwards weighted by the discount factors. Its distance to the simple average is
+$\Cov(B_j, F_j)/\bar B$, of second order.
+\end{lemma}
+\begin{proof}
+$\bar C-\bar P=\frac1n\sum_jB_j(F_j-K)$ vanishes at $K^\ast$, and
+$K^\ast-\bar F=\bigl(\overline{BF}-\bar B\,\bar F\bigr)/\bar B$.
+\end{proof}
+
+\begin{example}[Parity]\label{ex-parity}
+Strikes $90$, $100$ and $110$, puts at $\num{2.1}$, $\num{5.4}$ and $\num{10.9}$, calls built from $F=\num{102.3}$ and
+$B(0, T)=\num{0.97}$. The weighted regression of $\bar C-\bar P$ on $K$ gives $F=\vParF$ and $B(0, T)=\vParDF$.
+Multiplying every price by $\num{1.02}$ (a wrong discount factor) gives $F=\vParFtwo$ and $B(0, T)=\vParDFtwo$: the
+forward does not change.
+\end{example}
+
+\subsection{The noise covariance}\label{app-noise}
+\begin{lemma}[Cumulative covariance]\label{lem-cumcov}
+Let $s\in\R^N$ have non-negative, non-decreasing components, and $w\in[0,1]$. The matrix
+$C_{kl}=w\,s_ks_l+(1-w)\min(s_k, s_l)^2$ is the covariance matrix of $Z_k=\sqrt{w}\,s_k\,\xi+\sqrt{1-w}\,B_{s_k^2}$,
+where $\xi\sim\N(0, 1)$ is independent of a standard Brownian motion $(B_t)_{t\ge0}$; it is therefore symmetric positive
+semi-definite. For $w=0$, the correlation between $Z_k$ and $Z_l$, $k<l$, is $s_k/s_l$.
+\end{lemma}
+\begin{proof}
+$\Cov(Z_k, Z_l)=w\,s_ks_l+(1-w)\Cov\bigl(B_{s_k^2}, B_{s_l^2}\bigr)=w\,s_ks_l+(1-w)\min(s_k^2, s_l^2)$. For $w=0$ and
+$k<l$, $\Cov(Z_k, Z_l)/\sqrt{\Var Z_k\Var Z_l}=s_k^2/(s_ks_l)=s_k/s_l$.
+\end{proof}
+
+\begin{proof}[Proof of \cref{prop-noise}]
+By \cref{lem-logf}, the error of contributor $j$ on $\ln F_j(T_k)$ is $-T_ku_j-v_j(T_k)/(S_0-D_k)$. The repo part is a
+persistent level: its covariance between $T_k$ and $T_l$ is $\sigma_q^2T_kT_l$. The dividend part is cumulative, made
+of a persistent factor and increments at each ex-date: its covariance is that of \cref{lem-cumcov}, applied to the
+dispersion $s'$ (made non-decreasing). The two parts being independent, they add up; \cref{prop-nested} gives the
+division by $\max(n^{\opt}_k, n^{\opt}_l)$, hence \eqref{eq-gamma-opt}. For the dividend panel, \cref{lem-allocation}
+gives $e^{\dv}_k=\sum_pa_{kp}\,\delta\ell_p/(S_0-D_k)=(A_S\,\delta\ell)_k$, where $\delta\ell$ is the error of the
+consensus levels, with covariance $\Gamma^\ell$ by \cref{prop-nested}; hence \eqref{eq-gamma-div}. The two panels being
+independent, $\Gamma=\Gamma^{\opt}+\Gamma^{\dv}$.
+\end{proof}
+
+\subsection{The Student distribution of the FO mismark test}\label{app-student}
+\begin{lemma}
+Let $\hat\beta_0\sim\N(\beta_0, c\,\sigma^2)$ and let $\hat\sigma^2$ be an independent estimate with
+$\nu\,\hat\sigma^2/\sigma^2\sim\chi^2(\nu)$. Then $(\hat\beta_0-\beta_0)/\sqrt{c\,\hat\sigma^2}$ follows a Student
+distribution with $\nu$ degrees of freedom.
+\end{lemma}
+\begin{proof}
+This is the definition of the Student distribution: a standard normal variable divided by the square root of an
+independent $\chi^2(\nu)/\nu$ variable.
+\end{proof}
+With dispersions estimated from $n^{\opt}$ contributors, $\nu\approx n^{\opt}-1$ at the short end, where the uncertainty
+on the repo level is read; the level scale $s$ corrects what this approximation misses.
+
+\subsection{The second-order term of the control identity}\label{app-second}
+\begin{proposition}\label{prop-second}
+For a single pillar, with $F(q, D)=e^{(r-q)T}(S_0-D)$ and $V=\varphi\circ F$, the first-order total (dividend and repo
+lines) is
+\[
+\varphi'(F)\,\Delta F-\varphi'(F)\,F\Bigl[\tfrac12T^2\,\Delta q^2+\frac{T\,\Delta q\,\Delta D}{S_0-D}\Bigr]
++O\bigl(\norm{\Delta}^3\bigr),
+\]
+while the exact control is $\varphi'(F)\,\Delta F+\frac12\varphi''(F)\,\Delta F^2+O(\norm{\Delta}^3)$. All the dependence
+of the first-order total on the dividend panel is therefore in the bracket.
+\end{proposition}
+\begin{proof}
+Expand $F$ to second order, with $\partial_qF=-TF$, $\partial_DF=-F/(S_0-D)$, $\partial^2_{qq}F=T^2F$,
+$\partial^2_{qD}F=TF/(S_0-D)$ and $\partial^2_{DD}F=0$:
+$\Delta F=\partial_qF\,\Delta q+\partial_DF\,\Delta D+\frac12T^2F\,\Delta q^2+TF\,\Delta q\,\Delta D/(S_0-D)+O(3)$. The
+first-order total is $\varphi'(F)(\partial_qF\,\Delta q+\partial_DF\,\Delta D)$; substitute.
+\end{proof}
+For several pillars, the same expression adds up pillar by pillar, plus second-order cross terms created by the
+interpolation of the carry between pillars.
+
+\subsection{The signal-to-noise ratio in a paired design}
+\begin{lemma}
+If a scenario adds an effect $e\in\R^N$ to a name's carry difference without changing its noise (same draw of
+contributors), then $\delta^{\text{scenario}}-\delta^{\text{clean}}=e$, and the signal-to-noise ratio
+$\lambda=\norm{\Pi We}$ of \cref{cor-power} is known exactly. For a single typical shape, $e=a\,g$ and
+$\lambda=|a|\,\norm{\gt}$.
+\end{lemma}
+\begin{proof}
+The noise cancels in the difference; for $e=a\,g$, $\Pi We=a\,\gt$.
+\end{proof}
+
+\section{Algorithms}\label{app-algos}
+\begin{algorithm}[H]
+\caption{Implied repo bootstrap}\label{alg-bootstrap}
+\begin{algorithmic}[1]
+\Require spot $S_0$, rates $r(\cdot)$, dividends $(t_i, d_i)$, pillars $T_1<\dots<T_N$, forwards $F_1, \dots, F_N$
+\For{$k=1, \dots, N$}
+  \State build $\mathcal F_k$ from \eqref{eq-fk} with $q_1, \dots, q_{k-1}$
+  \State $x\gets$ starting point: dividends of the period discounted at the previous repo
+  \Repeat
+    \State $h\gets\ln\mathcal F_k(x)-\ln F_k$; update the bracket $[x^-, x^+]$ from the sign of $h$
+    \State $x\gets x-h\,\mathcal F_k(x)/\mathcal F_k'(x)$; if $x\notin\intoo{x^-}{x^+}$, $x\gets(x^-+x^+)/2$
+  \Until{the step is below tolerance}
+  \State $q_k\gets x/T_k$
+\EndFor
+\State \Return $(q_1, \dots, q_N)$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{Structural detection}\label{alg-detect}
+\begin{algorithmic}[1]
+\Require carry difference $\delta$, covariance $\Gamma$, scale $\kappa$, matrix $X$, typical shapes $\mathcal G$, level $\alpha$
+\State $W\gets L^{-1}$ with $\kappa\Gamma=L\,\tr{L}$; $\Pi\gets$ projection onto the orthogonal complement of $WX$; $\eh\gets\Pi W\delta$
+\State for each $g\in\mathcal G$: $\gt\gets\Pi Wg$, $z_g\gets\sprod{\gt}{\eh}/\norm{\gt}$
+\State $c_\alpha\gets$ $1-\alpha/2$ quantile of $\max_g|Z_g|$, $Z\sim\N(0, \Omega)$ \Comment{\cref{prop-family}}
+\State alarm $\gets\max_g|z_g|>c_\alpha$ \textbf{or} $\norm{\eh}^2>\chi^2_{1-\alpha/2}(N-2)$
+\If{alarm}
+  \State $\mathcal S\gets\emptyset$; \textbf{repeat}: add the shape with the largest $|z|$ after projecting out
+  $[X, \mathcal S]$,
+  \Statex \hspace{\algorithmicindent} \textbf{while} that $|z|$ exceeds $c_\alpha$
+\EndIf
+\State joint generalised least-squares fit of $\delta$ on $[X, \mathcal S]$; sizes in natural units; repaired curve
+\State possible FO mismark if $|\hat\beta_0|>\max\bigl(10\text{\,bp}, t_{\nu,1-\alpha/2}\,s\,\sigma(\hat\beta_0)\bigr)$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{Calibration of the scale $\kappa$}\label{alg-kappa}
+\begin{algorithmic}[1]
+\Require clean names $i\in\ient1n$ with $\bigl(\max_g|z_{g,i}|, c_{\alpha,i}, \norm{\eh_i}^2\bigr)$ computed for
+$\kappa=1$; target $\alpha$
+\State $u^-\gets\ln10^{-3}$, $u^+\gets\ln10^{3}$
+\For{$60$ iterations}
+  \State $u\gets(u^-+u^+)/2$; $\hat\alpha\gets\frac1n\sum_i\one\bigl\{\max_g|z_{g,i}|\,e^{-u/2}>c_{\alpha,i}\ \text{or}\
+  \norm{\eh_i}^2e^{-u}>\chi^2_{1-\alpha/2}(N-2)\bigr\}$
+  \State \textbf{if} $\hat\alpha\le\alpha$ \textbf{then} $u^+\gets u$ \textbf{else} $u^-\gets u$
+\EndFor
+\State \Return $\kappa=e^{u^+}$
+\end{algorithmic}
+\end{algorithm}
+
+\section{Benchmark: specification and further results}\label{app-synthetic}
+\subsection{Specification of the synthetic market}
+\begin{itemize}
+\item \textbf{Dividends.} European stocks: annual dividend going ex between 20~April and 30~May (\pct{35} of names
+also pay a \pct{40} interim in November); US stocks: quarterly; hard-to-borrow names: annual or quarterly; European
+index: monthly stream with weights $(1, 2, 4, 14, 24, 18, 6, 4, 3, 4, 3, 2)$ per calendar month. Yield and growth drawn
+per name within the ranges of \cref{tab-categories}.
+\item \textbf{Repo.} $q(T)=q_\infty+(q_0-q_\infty)\,e^{-T/\tau}$, with $q_0$, $q_\infty$ and $\tau$ drawn per name.
+\item \textbf{Contributors' dividend views.}
+$d_{ij}=d_i\bigl(1+\sigma(t_i)\,[\num{0.7}\,z_j+\sqrt{1-\num{0.7}^2}\,e_{ij}]\bigr)$, with $\sigma(t)$ affine in $t$ and
+specific to each category, $z_j$ persistent and $e_{ij}$ specific to each dividend; dividends already announced (before
+$\num{0.15}$ years) have a dispersion ten times smaller.
+\item \textbf{Contributors' repo views.} $q_j(T)=q(T)+\sigma_q\bigl(u_j+\num{0.6}\,v_j\,\varsigma(T)\bigr)$, where
+$\varsigma$ is a tilt linear in $\ln T$ from $\num{-0.5}$ to $\num{0.5}$; $\sigma_q$ is $15$, $10$, $60$ and $8$\,bp for
+the four categories.
+\item \textbf{Options.} Strikes from \pct{80} to \pct{120} of spot; volatility with a term structure and a smile slope
+of $\num{-0.10}$ per unit of log-moneyness; volatility noise of one point per contributor, price noise of
+$2\times10^{-5}$ of spot.
+\item \textbf{Consensus.} Panel mean after excluding quotes more than four normalised median absolute deviations away
+from the median.
+\item \textbf{FO.} Dividends with a \pct{1} noise, repo with a $3$\,bp level error; spot equal to the Totem reference
+spot.
+\end{itemize}
+
+\subsection{Further results}\label{app-results}
+\begin{table}[H]
+\centering
+\caption{Area under the ROC curve against clean names (ranking quality, independent of the threshold).}
+\label{tab-auc}
+\input{generated/\lang/tab_auc}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{False alarm rate realised on new clean names, by category (target \vFPR), and calibrated scale $\kappa$.}
+\label{tab-fpr}
+\input{generated/\lang/tab_fpr}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Structural detector: share of names flagged, by scenario and category.}\label{tab-bycat}
+\input{generated/\lang/tab_bycat}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Structural detector: detection, explanation (the first explanation names the injected mechanism and its
+position) and FO mismark flags.}\label{tab-attribution}
+\input{generated/\lang/tab_attribution}
+\end{table}
+
 \section{Notation}\label{app-notation}
 \begin{center}\small
-\begin{tabular}{lp{12cm}}
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{4.4cm}>{\raggedright\arraybackslash}p{10.6cm}@{}}
 \toprule
 Symbol & Meaning\\
 \midrule
-$S$, $r$, $R=rt$ & spot, zero rate, cumulative rate\\
-$b$, $B=bt$ & zero repo, cumulative repo (carry)\\
-$G=e^{R-B}$ & carry growth factor\\
-$t_i$, $d_i$, $\tilde d_i=d_i/G(t_i)$ & ex-dates, cash dividends, carry-discounted dividends\\
-$D(T)$ & carry-discounted cumulative dividend, \cref{eq-forward}\\
-$T_k$, $k=1..K$ & Totem expiries (pillars)\\
-$L_y$, $\pi_i$, $A_{ky}$ & dividend level of period $y$, profile weights, allocation matrix\\
-$\Aset$, $\Bset$, $n_A$, $n_B$, $m$ & option and dividend panels, their sizes, contributors common to both\\
-$\bA$, $\DA$, $\DB$ & option-panel average repo and dividend views; dividend-panel consensus\\
-$y_k$ & carry difference Totem minus FO, \cref{eq-y}\\
-$X=[T,T\ln T]$, $\beta$ & null model (smooth repo difference) and its coefficients\\
-$\Sigma$, $\kappa$ & consensus-noise covariance, variance scale\\
-$t$, $\tb$, $z_t$, $Q$ & template, its whitened projection, matched-filter statistic, global chi-square\\
-$s_b$, $s_D$, $J$, $g$ & FO sensitivities to repo and dividends, implied-repo Jacobian, non-forward exposure\\
+$S_0$, $r(T)$, $B(0, T)$ & spot, zero rate, discount factor\\
+$q(T)$, $q_k$ & zero repo rate, its value at pillar $T_k$\\
+$t_i$, $d_i$, $\tilde d_i$ & ex-dates, dividends, dividends discounted at the carry rate\\
+$D(T)$, $F(T)$ & cumulative discounted dividends, forward (\cref{def-forward})\\
+$T_1<\dots<T_N$ & Totem maturities (pillars), $N=11$\\
+$I_p$, $\ell_p$, $\pi_i$ & dividend periods, $p\in\ient1m$, their levels, allocation profile weights\\
+$A=(a_{kp})$, $A_S$ & allocation matrix (\cref{lem-allocation}), $(A_S)_{kp}=a_{kp}/(S_0-D_k)$\\
+$\Popt_k$, $\Pdiv_p$ & option and dividend panels, of sizes $n^{\opt}_k$ and $n^{\dv}_p$; $n^{\com}$ common
+contributors\\
+$\qbar$, $\Dopt$, $\Ddiv$ & average repo and dividends of the option panel, dividends of the dividend panel\\
+$x^{\tot}$, $x^{\fo}$ & Totem quantity, FO quantity\\
+$\delta_k$ & carry difference $(q^{\tot}_k-q^{\fo}_k)\,T_k$ (\cref{def-delta})\\
+$\hat q$ & repo implied by the Totem forwards with the FO dividends\\
+$\psi$, $J$ & implied repo map, its Jacobian $\partial_\ell\psi$ (\cref{lem-jacobian})\\
+$s^q$, $s^\ell$, $\eta$ & FO sensitivities to repo and dividends, non-forward exposure $s^\ell+\tr{J}s^q$\\
+$X$, $\beta=(\beta_0, \beta_1)$ & null model: smooth repo difference $\beta_0+\beta_1\ln T$\\
+$\Gamma=\Gamma^{\opt}+\Gamma^{\dv}$, $\Gamma^\ell$, $\kappa$ & covariance of the carry noise, of the dividend levels,
+scale\\
+$g$, $a_g$, $\mathcal G$, $\mathcal S$ & typical shape, its size, set of typical shapes, selected shapes\\
+$W$, $\Pi$, $\eh$, $\gt$ & whitening, projection, whitened residual, whitened typical shape\\
+$z_g$, $c_\alpha$, $\lambda$ & matched-filter statistic, common threshold, signal-to-noise ratio\\
 \bottomrule
 \end{tabular}
 \end{center}
 
-\section{Additional proofs and remarks}\label{app-proofs}
-
-\begin{lemma}[Heterogeneous discounting]
-If contributor $j$ discounts with $DF_j$, the zero crossing of $\overline{C}-\overline{P}$ is
-$K^\ast=\sum_jDF_jF_j/\sum_jDF_j$, a discount-weighted mean of the contributors' forwards. Its difference from the plain
-mean is $\Cov(DF_j,F_j)/\overline{DF}$, of second order.
-\end{lemma}
-\begin{proof}
-$\overline{C}-\overline{P}=\frac1n\sum_jDF_j(F_j-K)$ vanishes at $K^\ast$. Then
-$K^\ast-\overline F=\bigl(\overline{DF\,F}-\overline{DF}\,\overline F\bigr)/\overline{DF}$.
-\end{proof}
-
-\begin{lemma}[Exact signal-to-noise in a paired design]
-If a scenario adds an effect $\eta$ to the carry difference of a name and leaves its consensus noise unchanged (same
-seed), then $y^{\text{scenario}}-y^{\text{clean}}=\eta$ and the signal-to-noise $\|PL^{-1}\eta\|$ of \cref{cor-power} is
-known exactly, without noise. For a single template ($\eta=a\,t$) it equals $|a|\,\|\tb\|$.
-\end{lemma}
-\begin{proof}
-The noise cancels in the difference; for $\eta=at$, $PL^{-1}\eta=a\tb$.
-\end{proof}
-
-\begin{lemma}[Student calibration of the FO-mismark test]
-Let $\hat\beta_0\sim\N(\beta_0,c\,\sigma^2)$ and let $\hat\sigma^2$ be an independent estimate with
-$\nu\hat\sigma^2/\sigma^2\sim\chi^2_\nu$. Then $(\hat\beta_0-\beta_0)/\sqrt{c\hat\sigma^2}\sim t_\nu$.
-\end{lemma}
-\begin{proof}
-Definition of the Student distribution: a standard normal divided by the square root of an independent $\chi^2_\nu/\nu$.
-\end{proof}
-With dispersions estimated from $n_A$ contributors, $\nu\approx n_A-1$ at the short end, where the repo-level
-uncertainty is read; the level scale $s$ then corrects what this approximation misses.
-
-\begin{remark}[Multi-pillar second-order term]
-\Cref{prop-second} extends pillar by pillar: for $V=\Phi(F_1,\dots,F_K)$ with expiries on pillars, the dependence of the
-first-order total on the dividend panel is $-\sum_k\partial_k\Phi\,F_k\bigl[\tfrac12T_k^2\Delta b_k^2+T_k\Delta b_k\Delta D_k/(S-D_k)\bigr]$
-plus the cross terms created by the interpolation of carry between pillars, all of second order.
-\end{remark}
-
-\section{Synthetic market specification}\label{app-synthetic}
-\begin{itemize}
-\item \textbf{Dividends.} EU stocks: annual dividend between 20 April and 30 May (35\% of names also pay a November
-interim of 40\%); US stocks: quarterly; hard-to-borrow: annual or quarterly; EU index: monthly stream with weights
-$(1,2,4,14,24,18,6,4,3,4,3,2)$ by calendar month. Yield and growth drawn per name in the ranges of the category table.
-\item \textbf{Repo.} $b(T)=b_\infty+(b_0-b_\infty)e^{-T/\tau}$ with $b_0$, $b_\infty$, $\tau$ drawn per name.
-\item \textbf{Contributor dividend views.} $d_{ij}=d_i\bigl(1+\sigma(t_i)[0.7\,z_j+\sqrt{1-0.7^2}\,e_{ij}]\bigr)$ with
-$\sigma(t)$ affine in $t$ (category-specific), $z_j$ persistent, $e_{ij}$ idiosyncratic; announced dividends (before
-$0.15$ year) have one tenth of the dispersion.
-\item \textbf{Contributor repo views.} $b_j(T)=b(T)+\sigma_b\bigl(u_j+0.6\,v_j\,\tau(T)\bigr)$, with $\tau(T)$ a tilt
-linear in $\ln T$ from $-0.5$ to $0.5$; $\sigma_b$ is $15$, $10$, $60$ and $8$\,bp for the four categories.
-\item \textbf{Options.} Strikes $80$--$120\%$ of spot; volatility with a term structure and a skew of $-0.10$ per unit of
-log-moneyness, contributor volatility noise of one point, price noise $2\times10^{-5}$ of spot.
-\item \textbf{Consensus.} Mean over the panel after removing quotes more than four scaled median absolute deviations
-from the median.
-\item \textbf{FO.} Dividends with $1\%$ noise, repo with a $3$\,bp level error; spot equal to the Totem reference spot.
-\end{itemize}
-
 \section{Reproducibility}\label{app-repro}
-All numbers, tables and figures of this note are generated by the repository:
+\begin{minipage}{\linewidth}
+Every number, table and figure in this note is produced by the code in the repository:
 \begin{center}\small
 \begin{tabular}{l}
 \code{pip install -e .[benchmark,report,dev]}\\
@@ -87,3 +275,19 @@ All numbers, tables and figures of this note are generated by the repository:
 \code{PYTHONPATH=. python scripts/build\_latex.py}
 \end{tabular}
 \end{center}
+\end{minipage}
+
+\begin{thebibliography}{9}
+\bibitem{eilers1996} P.~H.~C. Eilers and B.~D. Marx. Flexible smoothing with B-splines and penalties.
+\emph{Statistical Science}, 11(2):89--121, 1996.
+\bibitem{lovell1963} M.~C. Lovell. Seasonal adjustment of economic time series and multiple regression analysis.
+\emph{Journal of the American Statistical Association}, 58(304):993--1010, 1963.
+\bibitem{mallat1993} S.~G. Mallat and Z.~Zhang. Matching pursuits with time-frequency dictionaries.
+\emph{IEEE Transactions on Signal Processing}, 41(12):3397--3415, 1993.
+\bibitem{eu2016} Commission Delegated Regulation (EU) 2016/101 of 26 October 2015 supplementing Regulation (EU)
+No~575/2013 with regard to regulatory technical standards for prudent valuation.
+\bibitem{scharf1994} L.~L. Scharf and B.~Friedlander. Matched subspace detectors. \emph{IEEE Transactions on Signal
+Processing}, 42(8):2146--2157, 1994.
+\bibitem{sidak1967} Z.~Šidák. Rectangular confidence regions for the means of multivariate normal distributions.
+\emph{Journal of the American Statistical Association}, 62(318):626--633, 1967.
+\end{thebibliography}

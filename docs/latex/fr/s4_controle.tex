@@ -1,0 +1,183 @@
+\section{Contrôler le repo à partir des contrôles forward et dividendes}\label{sec-controle}
+
+\begin{objectif}
+(O2) Répondre à la question \og j'ai le contrôle forward, j'ai le contrôle dividendes : combien vaut le contrôle
+repo ? \fg{}, et mesurer, portefeuille par portefeuille, ce que la répartition de Totem entre repo et dividendes change
+au contrôle.
+\end{objectif}
+
+\subsection{Lignes de contrôle}
+On regroupe les taux de repo aux piliers et les niveaux de dividendes par période dans
+$\theta=(q, \ell)\in\R^N\times\R^m$. Le spot, la courbe des taux et le profil d'allocation sont fixés, de sorte que les
+forwards aux piliers forment une fonction régulière $F(\theta)\in\R^N$. D'après la \cref{prop-bootstrap}, pour des
+forwards $F$ et des niveaux $\ell$ donnés, il existe un unique repo $q=\psi(F, \ell)$ tel que
+$F\bigl(\psi(F, \ell), \ell\bigr)=F$ : c'est l'\emph{application repo implicite}.
+
+Les marquages FO sont $\theta^{\fo}=(q^{\fo}, \ell^{\fo})$. Totem fournit des forwards $F^{\tot}$ et des niveaux
+$\ell^{\tot}$, d'où $q^{\tot}=\psi(F^{\tot}, \ell^{\tot})$ et $\hat q=\psi(F^{\tot}, \ell^{\fo})$. Un portefeuille a une
+valeur $V(\theta)$ et des sensibilités FO $s^q=\partial_qV(\theta^{\fo})\in\R^N$ et
+$s^\ell=\partial_\ell V(\theta^{\fo})\in\R^m$. On note enfin
+\[
+\Delta\ell=\ell^{\tot}-\ell^{\fo}, \qquad\Delta q=q^{\tot}-q^{\fo}, \qquad\Delta\hat q=\hat q-q^{\fo}.
+\]
+
+\begin{definition}[Lignes de contrôle]\label{def-lines}
+\[
+\text{ligne dividendes}=\sprod{s^\ell}{\Delta\ell}, \qquad\text{ligne repo}=\sprod{s^q}{\Delta q}, \qquad
+\text{ligne forward}=\sprod{s^q}{\Delta\hat q}.
+\]
+Le \emph{total} est la somme des lignes dividendes et repo. La ligne forward est la ligne repo que l'on obtiendrait en
+gardant les dividendes du FO : elle ne dépend de Totem qu'à travers ses forwards.
+\end{definition}
+
+\begin{definition}[Portefeuille linéaire en forward]\label{def-fwdlinear}
+Un portefeuille est \emph{linéaire en forward} si $V(\theta)=\varphi\bigl(F(\theta)\bigr)$ pour une fonction $\varphi$
+de classe $C^2$ : sa valeur ne dépend du repo et des dividendes qu'à travers les forwards. C'est le cas des options
+européennes valorisées avec une nappe de volatilité qui ne dépend pas de la répartition, des forwards et des futures.
+\end{definition}
+
+\subsection{La jacobienne du repo implicite}
+\begin{lemma}[Jacobienne]\label{lem-jacobian}
+La matrice $J=\partial_\ell\psi(F, \ell)\in\M_{N,m}(\R)$ vaut $J=-(\partial_qF)^{-1}\partial_\ell F$. La matrice
+$\partial_qF$ est triangulaire inférieure, de termes diagonaux $\partial F_k/\partial q_k\le-T_kF_k<0$, donc
+inversible. Au premier ordre,
+\begin{equation}\label{eq-jacobian}
+J_{kp}\approx-\frac{a_{kp}}{T_k\,(S_0-D_k)} .
+\end{equation}
+\end{lemma}
+\begin{proof}
+On dérive $F\bigl(\psi(F, \ell), \ell\bigr)=F$ par rapport à $\ell$ : $\partial_qF\,J+\partial_\ell F=0$. Avec un repo
+forward constant entre piliers, $F_k$ ne dépend que de $q_1, \dots, q_k$, d'où la forme triangulaire ; le terme
+diagonal vaut $T_k\,\mathcal F_k'(q_kT_k)\le-T_kF_k$ d'après la \cref{prop-bootstrap}. Pour le premier ordre, on fixe
+les forwards dans \eqref{eq-additivity} : $T_k\,\delta q_k=-\delta D_k/(S_0-D_k)=-a_{kp}\,\delta\ell_p/(S_0-D_k)$.
+\end{proof}
+
+\subsection{L'identité de contrôle}
+\begin{theorem}[Identité de contrôle]\label{thm-control}
+Pour tout portefeuille,
+\begin{equation}\label{eq-control}
+\text{ligne dividendes}+\text{ligne repo}=\text{ligne forward}+\sprod{\eta}{\Delta\ell}+O\bigl(\norm{\Delta}^2\bigr),
+\end{equation}
+où $\eta=s^\ell+\tr{J}\,s^q\in\R^m$, $J$ est évaluée en $(F^{\tot}, \ell^{\fo})$ et $\norm{\Delta}=\norm{\Delta\ell}+\norm{\Delta\hat q}$. On appelle
+$\sprod{\eta}{\Delta\ell}$ la \emph{ligne non-forward} et $\eta$ l'\emph{exposition non-forward}. Si le portefeuille
+est linéaire en forward, $\eta=O(\norm{\Delta\hat q})$ : le total est égal à la ligne forward au second ordre près, et
+ne dépend donc pas des dividendes Totem au premier ordre.
+\end{theorem}
+\begin{proof}
+Un développement de $\psi$ en $\ell$ donne $\psi(F^{\tot}, \ell^{\tot})=\psi(F^{\tot}, \ell^{\fo})+J\Delta\ell
++O(\norm{\Delta\ell}^2)$, soit $\Delta q=\Delta\hat q+J\Delta\ell+O(\norm{\Delta\ell}^2)$. Donc
+\[
+\sprod{s^\ell}{\Delta\ell}+\sprod{s^q}{\Delta q}=\sprod{s^q}{\Delta\hat q}+\sprod{s^\ell+\tr{J}s^q}{\Delta\ell}
++O(\norm{\Delta}^2).
+\]
+Si $V=\varphi\circ F$, alors $\tr{s^q}=\nabla\varphi\,\partial_qF(\theta^{\fo})$ et
+$\tr{s^\ell}=\nabla\varphi\,\partial_\ell F(\theta^{\fo})$, d'où
+$\tr{\eta}=\nabla\varphi\,\bigl[\partial_\ell F+\partial_qF\,J\bigr](\theta^{\fo})$. Au point
+$\theta'=(\hat q, \ell^{\fo})$, le crochet est nul d'après le \cref{lem-jacobian} ; comme
+$\theta'-\theta^{\fo}=(\Delta\hat q, 0)$ et que les dérivées sont lipschitziennes, le crochet en $\theta^{\fo}$ est un
+$O(\norm{\Delta\hat q})$, et $\sprod{\eta}{\Delta\ell}=O(\norm{\Delta}^2)$.
+\end{proof}
+
+\begin{reponse}
+En réécrivant \eqref{eq-control} :
+\[
+\boxed{\;\text{ligne repo}=\text{ligne forward}-\text{ligne dividendes}+\text{ligne non-forward}\;}
+\]
+au second ordre près.
+Le contrôle repo se déduit du contrôle forward et du contrôle dividendes. Pour un portefeuille linéaire en forward, la
+ligne non-forward est nulle : le contrôle repo est exactement la différence des deux autres, et le total (dividendes
+$+$ repo) ne dépend pas des contributeurs dividendes de Totem. Le panel dividendes n'intervient qu'à travers
+l'exposition non-forward $\eta=s^\ell+\tr{J}s^q$, qui se calcule à partir des seules sensibilités FO et de la
+jacobienne du bootstrap, sans revalorisation.
+\end{reponse}
+
+Le résultat est même exact en réévaluation complète.
+
+\begin{theorem}[Exactitude en réévaluation complète]\label{thm-exact}
+Si le portefeuille est linéaire en forward et que toutes ses maturités sont des piliers Totem, le contrôle en
+réévaluation complète $V(\theta^{\tot})-V(\theta^{\fo})=\varphi(F^{\tot})-\varphi\bigl(F(\theta^{\fo})\bigr)$, avec
+$\theta^{\tot}=(q^{\tot}, \ell^{\tot})$, ne dépend pas des dividendes Totem $\ell^{\tot}$.
+\end{theorem}
+\begin{proof}
+Par construction du repo implicite, $F(\theta^{\tot})=F\bigl(\psi(F^{\tot}, \ell^{\tot}), \ell^{\tot}\bigr)=F^{\tot}$, quel
+que soit $\ell^{\tot}$.
+\end{proof}
+
+\begin{remark}[Maturités entre deux piliers]
+Pour une maturité située entre deux piliers, le forward dépend du portage interpolé et des dividendes détachés entre
+les deux : une dépendance résiduelle à $\ell^{\tot}$ subsiste. Elle est de l'ordre des dividendes détachés entre la
+maturité et les piliers voisins, c'est-à-dire exactement les effets de date et de profil de la
+\cref{prop-signatures}, que surveille le détecteur. Le terme du second ordre de \eqref{eq-control} est explicité en
+\cref{app-second}.
+\end{remark}
+
+\subsection{Exemples}
+\begin{example}[Un call]\label{ex-call}
+Un call à la monnaie à un an : spot $100$, taux \pct{3}, volatilité \pct{25}, dividende FO $D^{\fo}=\num{3.5}$, repo FO
+$60$\,pb. Le forward Totem est inférieur de $20$\,pb à celui du FO, et l'on essaie trois panels dividendes :
+\begin{center}\input{generated/\lang/tab_cancel}\end{center}
+Le repo implicite varie de $125$\,pb d'un panel à l'autre et chaque ligne d'environ $\num{0.3}$, mais le total ne
+bouge pas, et il est égal à la réévaluation complète.
+\end{example}
+
+\begin{example}[Trois portefeuilles]\label{ex-books}
+Le pricer du prototype valorise trois portefeuilles sur onze piliers de repo et six périodes de dividendes :
+A (calls, puts et un forward), B (A plus un swap de dividendes 2028 vendu) et C (A plus une commission de prêt de titres
+à un an). Les forwards Totem sont inférieurs de $20$\,pb à ceux du FO, et le panel dividendes Totem décale les
+périodes 2027 et 2028 de $\Delta\ell\in\{\num{-0.4}\,;\,0\,;\,\num{+0.5}\}$ :
+\begin{center}\input{generated/\lang/tab_books}\end{center}
+Pour A, le total reste à \vBookATotal{} (la ligne forward) alors que chaque ligne varie de plus de six unités. Pour B et
+C, le total bouge, exactement de la ligne non-forward : le swap de dividendes est une vraie exposition aux dividendes,
+la commission de prêt une vraie exposition au repo. La réévaluation complète confirme chaque ligne
+(\cref{fig-cancellation}).
+\end{example}
+
+\begin{figure}[ht]
+\centering\includegraphics[width=\linewidth]{figures/\lang/cancellation.pdf}
+\caption{Lignes dividendes et repo, et leur total, quand le panel dividendes Totem se déplace (portefeuille A à
+gauche, B à droite). Points : réévaluation complète. Pour un portefeuille linéaire en forward, le total est plat
+(\cref{thm-control,thm-exact}) ; le swap de dividendes ajoute une vraie exposition aux dividendes, dont la ligne est
+exactement $\sprod{\eta}{\Delta\ell}$.}
+\label{fig-cancellation}
+\end{figure}
+
+\subsection{Ce que la répartition coûte à un portefeuille}
+\begin{proposition}[Matérialité de la répartition]\label{prop-materiality}
+On suppose que l'erreur de consensus sur les niveaux de dividendes $\Delta\ell$ a une matrice de covariance
+$\Gamma^\ell$, les forwards Totem étant fixés. Au premier ordre, la variance du total vaut $\tr{\eta}\,\Gamma^\ell\eta$,
+contre $\tr{(s^\ell)}\,\Gamma^\ell s^\ell$ pour la ligne dividendes seule. La part de l'incertitude de la ligne dividendes
+compensée par la ligne repo vaut donc
+\[
+1-\sqrt{\frac{\tr{\eta}\,\Gamma^\ell\eta}{\tr{(s^\ell)}\,\Gamma^\ell s^\ell}} .
+\]
+\end{proposition}
+\begin{proof}
+D'après le \cref{thm-control}, le total est la ligne forward, qui ne dépend pas de $\ell^{\tot}$, plus
+$\sprod{\eta}{\Delta\ell}$.
+\end{proof}
+
+\begin{example}[Matérialité]\label{ex-materiality}
+Avec une dispersion de consensus de \pct{5} de chaque période, dix contributeurs et une corrélation $e^{-|c_p-c_{p'}|/2}$
+entre périodes de milieux $c_p$ et $c_{p'}$ :
+\begin{center}\input{generated/\lang/tab_materiality}\end{center}
+\vMatA{} de l'incertitude de la ligne dividendes se compense pour le portefeuille A, \vMatB{} pour B et \vMatC{} pour C.
+\end{example}
+
+\subsection{Quand la répartition compte}
+L'exposition non-forward $\eta$ n'est pas nulle pour les swaps et futures de dividendes (exposition pure aux
+dividendes), pour les commissions de prêt-emprunt de titres et les jambes de financement des swaps de rendement total
+(exposition pure au repo), pour l'exercice américain (la frontière d'exercice anticipé dépend séparément des
+dividendes et du repo) et pour les exotiques valorisés avec une dynamique de dividendes discrets. Pour ces
+portefeuilles, la répartition doit être contrôlée directement, et la qualité de la courbe de repo implicite compte :
+c'est l'objet de la \cref{sec-detection}.
+
+\begin{retenir}
+\begin{itemize}[leftmargin=12pt]
+\item Contrôler la \emph{ligne forward} (forwards Totem, dividendes FO) et la \emph{ligne non-forward}
+$\sprod{\eta}{\Delta\ell}$ ; la seconde n'a besoin des dividendes Totem que là où $\eta\ne0$.
+\item Des lignes dividendes et repo importantes et de signes opposés, avec un total faible, sont un artefact de
+répartition, pas une erreur de marquage.
+\item En valorisation prudente~\cite{eu2016}, agréger les incertitudes par paramètre sans compensation compte deux
+fois un artefact de répartition ; prendre le forward comme paramètre là où $\eta\approx0$ supprime ce double compte.
+\end{itemize}
+\end{retenir}

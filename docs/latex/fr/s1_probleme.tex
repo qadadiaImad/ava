@@ -1,0 +1,135 @@
+\section{Le problème et l'objectif}\label{sec-probleme}
+
+\begin{objectif}
+Décrire la chaîne qui va des contributions Totem aux lignes de contrôle, montrer pourquoi une courbe de repo implicite
+paraît souvent aberrante sans l'être, et préciser ce que la note doit livrer.
+\end{objectif}
+
+\subsection{La chaîne de contrôle}
+Pour chaque sous-jacent et chaque date de contrôle, le contrôleur dispose de trois sources (\cref{fig-chaine}).
+\begin{itemize}
+\item \textbf{Totem options} : pour chaque maturité $T_k$, des prix de consensus de calls et de puts sur une grille
+de strikes, le nombre de contributeurs $n^{\opt}_k$ et la dispersion de leurs cotations.
+\item \textbf{Totem dividendes} : pour chaque période $p$ (en général une année civile), le niveau de consensus
+$\ell^{\tot}_p$, c'est-à-dire la somme des dividendes détachés dans la période, le nombre de contributeurs
+$n^{\dv}_p$ et leur dispersion.
+\item \textbf{Le front office} : le spot, la courbe des taux, la courbe de repo $q^{\fo}$, la prévision de dividendes
+(dates de détachement et montants) et les sensibilités de chaque portefeuille au repo et aux dividendes.
+\end{itemize}
+La parité call--put donne les forwards Totem $F^{\tot}_k$. Les niveaux de dividendes sont répartis sur les dates de
+détachement du FO. Un bootstrap donne ensuite la courbe de repo $q^{\tot}$ qui, avec ces dividendes, reproduit
+exactement les forwards Totem. Cette courbe sert à deux choses : calculer les lignes de contrôle, c'est-à-dire les
+écarts Totem moins FO multipliés par les sensibilités (\cref{sec-controle}), et contrôler la qualité de la courbe
+elle-même (\cref{sec-detection}).
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  font=\small, >={Stealth[length=2mm]},
+  box/.style={rounded corners=2pt, align=center, inner sep=4pt, minimum height=1.2cm},
+  src/.style={box, draw=accent, fill=accentwash, minimum width=3.3cm},
+  fo/.style={box, draw=muted, fill=greywash, minimum width=3.3cm},
+  mid/.style={box, draw=rule, fill=white, minimum width=2.2cm},
+  key/.style={box, draw=accentdark, line width=0.9pt, fill=white, minimum width=2.2cm},
+  use/.style={box, draw=green, fill=greenwash, minimum width=3.5cm},
+  lab/.style={font=\footnotesize\itshape, text=ink2, align=center}]
+\node[src] (opt) at (0,2.4) {\textbf{Totem options}\\ calls et puts, $n^{\opt}_k$};
+\node[src] (div) at (0,0.8) {\textbf{Totem dividendes}\\ niveaux $\ell^{\tot}_p$, $n^{\dv}_p$};
+\node[fo] (fo) at (0,-1.0) {\textbf{Front office}\\ $q^{\fo}$, dividendes,\\ sensibilités $s^q$, $s^\ell$};
+\node[mid] (F) at (4.6,2.4) {forwards\\ $F^{\tot}_k$};
+\node[mid] (D) at (4.6,0.8) {dividendes\\ $D^{\tot}_k$};
+\node[key] (Q) at (7.65,1.6) {\textbf{repo implicite}\\ $q^{\tot}_k$};
+\node[use] (L) at (11.25,2.4) {\textbf{Lignes de contrôle}\\ écarts $\times$ sensibilités\\ \cref{sec-controle}};
+\node[use] (Z) at (11.25,0.6) {\textbf{Détection}\\ sur l'écart de portage $\delta_k$\\ \cref{sec-detection}};
+\draw[->] (opt) -- node[lab, above] {parité} (F);
+\draw[->] (div) -- node[lab, above] {allocation} (D);
+\draw[->] (F.east) -- (Q);
+\draw[->] (D.east) -- (Q);
+\node[lab, anchor=south] at ($(Q.north)+(0,0.05)$) {bootstrap};
+\draw[->] (Q) -- (L);
+\draw[->] (Q) -- (Z);
+\draw[->, dashed, draw=muted] ($(fo.north east)+(0,-0.15)$) -- (D.south);
+\node[lab, anchor=north west] at ($(D.south)+(0.1,-0.12)$) {dates de détachement};
+\draw[draw=muted] (fo.east) -- (13.45,-1.0) -- (13.45,2.4);
+\draw[->, draw=muted] (13.45,2.4) -- (L.east);
+\draw[->, draw=muted] (13.45,0.6) -- (Z.east);
+\node[lab, anchor=north] at (7.65,-1.05) {$q^{\fo}$, dividendes FO, sensibilités};
+\end{tikzpicture}
+\caption{La chaîne de contrôle. Les deux services Totem ont des contributeurs différents, et leur nombre varie avec la
+maturité ; la courbe de repo implicite $q^{\tot}$ hérite du bruit des deux.}
+\label{fig-chaine}
+\end{figure}
+
+\subsection{Pourquoi la courbe paraît aberrante}
+Deux raisons, qui n'ont rien à voir avec une erreur, suffisent à donner à une courbe saine un aspect irrégulier.
+
+\paragraph{Deux panels, deux moyennes.} Le forward Totem est la moyenne des forwards du panel options, et le forward
+de chaque contributeur contient sa propre vue des dividendes. Le contrôleur lui retire les dividendes d'un autre panel,
+celui du service dividendes. Si les deux panels n'ont pas la même vue moyenne des dividendes, la différence se
+retrouve dans le repo implicite. Ce n'est pas une erreur de Totem : c'est la conséquence mécanique de deux moyennes
+prises sur des contributeurs différents. Sa taille dépend des nombres de contributeurs, qui baissent avec la maturité,
+et de la dispersion des vues sur les dividendes, qui augmente avec elle (\cref{sec-gap}).
+
+\paragraph{L'effet loupe en $1/T$.} Le repo est un taux : une erreur $\varepsilon$ sur le logarithme du forward devient
+une erreur $\varepsilon/T$ sur le repo. Une erreur de \pct{0.1} sur le forward vaut \num{120}\,pb de repo à un mois et
+\num{2}\,pb à cinq ans. Le court terme paraît donc toujours bruité, tandis qu'une erreur importante sur le long terme
+passe inaperçue.
+
+Une courbe d'aspect irrégulier n'est donc pas forcément mauvaise, et une courbe d'aspect lisse n'est pas forcément
+bonne. Toute la suite travaille sur l'\emph{écart de portage} $\delta_k=(q^{\tot}_k-q^{\fo}_k)\,T_k$, où les erreurs
+s'additionnent sans être amplifiées, et le compare à une bande de bruit calculée à partir des statistiques que Totem
+publie.
+
+\subsection{L'exemple fil rouge}\label{sec-filrouge}
+\begin{filrouge}
+Une action européenne synthétique (\cref{sec-banc}) : spot $S_0=100$, un dividende annuel d'environ \vRunDiv{}
+détaché début mai (le premier le \vRunExDate), un repo FO qui passe de \vRunQfoShort\,pb à court terme à
+\vRunQfoLong\,pb à cinq ans. Totem compte \vRunNoptShort{} contributeurs options sur les maturités courtes et
+\vRunNoptLong{} à cinq ans ; le service dividendes en compte \vRunNdivShort{} sur 2027 et \vRunNdivLong{} sur 2031.
+Les onze maturités Totem vont d'un mois à cinq ans. La \cref{fig-clean} montre le marché sain ; le même sous-jacent
+est repris, avec le même bruit de contributeurs, sous huit anomalies en \cref{sec-signatures} (\cref{fig-gallery}) et
+passé au détecteur en \cref{sec-retour}.
+\end{filrouge}
+
+\begin{figure}[ht]
+\centering\includegraphics[width=\linewidth]{figures/\lang/clean.pdf}
+\caption{Exemple fil rouge, marché sain. (a) Repo FO et repo implicite Totem, avec la bande de $\pm2$ écarts-types du
+bruit de consensus autour du repo FO. (b) Le même écart vu en portage : chaque point est
+$\delta_k=(q^{\tot}_k-q^{\fo}_k)\,T_k$, en points de base du spot.}
+\label{fig-clean}
+\end{figure}
+
+Dans l'espace de repo, la courbe Totem paraît mal formée : elle perd \vRunDrop\,pb entre six et neuf mois et finit
+\vRunGapLong\,pb sous le FO à cinq ans. Dans l'espace de portage, tous les points restent dans la bande.
+Le décrochage à neuf mois correspond à un écart de \vRunDivGap{} sur le dividende de mai 2027 entre la vue du panel
+options et celle du panel dividendes, soit \vRunDivGapPct{} du dividende et \vRunZNine{} écart-type ; à cinq ans,
+l'écart de portage vaut \vRunDeltaFive\,pb du spot pour un écart-type de \vRunSdFive\,pb. Le détecteur de la
+\cref{sec-detection} ne signale rien. Cette courbe est saine : c'est l'aspect normal d'un repo implicite tiré de deux
+panels différents.
+
+\subsection{Ce que la note doit livrer}
+Les trois objectifs de la première page se traduisent en quatre livrables.
+\begin{enumerate}
+\item \textbf{Un diagnostic} (O1, \cref{sec-diagnostic}) : une décomposition du repo implicite qui sépare le bruit
+attendu, dont on sait calculer la taille, des mécanismes qui produisent de vraies anomalies, chacun avec une forme
+reconnaissable.
+\item \textbf{Une règle de contrôle} (O2, \cref{sec-controle}) : une décomposition des lignes de contrôle qui ne dépend
+pas des contributeurs dividendes là où c'est possible, et une mesure, calculée à partir des sensibilités, de ce
+qu'elle laisse dépendre d'eux.
+\item \textbf{Un détecteur} (O3, \cref{sec-detection}) dont le taux de fausses alertes est connu, qui nomme le mécanisme
+en cause, en donne l'amplitude en unités naturelles (spot décalé de tant, dividende de mai 2027 trop bas de tant),
+répare la courbe et distingue une anomalie Totem d'une erreur de marquage FO.
+\item \textbf{Une comparaison} (\cref{sec-banc}) avec les idées de départ : coefficients B-spline par région et
+catégorie regroupés par mélange gaussien, petits réseaux de neurones spécialisés par type d'anomalie.
+\end{enumerate}
+
+\begin{retenir}
+\begin{itemize}[leftmargin=12pt]
+\item La courbe de repo implicite est un résidu : forwards d'un panel moins dividendes d'un autre panel. Elle hérite du
+bruit des deux.
+\item L'œil trompe : le repo amplifie en $1/T$ les erreurs du court terme et écrase celles du long terme. On juge la
+courbe sur l'écart de portage $\delta_k$, avec une bande de bruit.
+\item Dans l'exemple fil rouge, une courbe qui perd \vRunDrop\,pb en trois mois et finit \vRunGapLong\,pb sous
+le FO est parfaitement saine.
+\end{itemize}
+\end{retenir}

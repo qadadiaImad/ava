@@ -1,56 +1,92 @@
-% Shared packages for the English and French theory notes. The main files load babel and siunitx with the
-% language options and define the language-dependent names (\NTheorem, \NInsight, ...) before this file;
-% hyperref, cleveref and then theorems.tex come after it.
+% Shared by main_fr.tex and main_en.tex. The main files load babel, siunitx and the language-dependent names and
+% macros (\NTheorem, \tr, \intoc, ...) before this file; hyperref, cleveref and then theorems.tex come after it.
 \usepackage{lmodern}
-\usepackage{amsmath,amssymb,amsthm,mathtools,bm}
-\usepackage[a4paper,margin=2.35cm,headheight=14pt]{geometry}
-\usepackage{graphicx,booktabs,makecell,array,xcolor,caption,enumitem,microtype}
-\usepackage{fancyhdr}
+\usepackage{amsmath,amssymb,amsthm,mathtools,bm,stmaryrd}
+\usepackage[a4paper,top=2.5cm,bottom=2.6cm,left=2.75cm,right=2.75cm,headheight=14pt]{geometry}
+\usepackage{graphicx,booktabs,makecell,array,tabularx,xcolor,caption,enumitem,microtype,float}
+\usepackage[section]{placeins}
+\usepackage{fancyhdr,titlesec}
 \usepackage[most]{tcolorbox}
 \usepackage{algorithm}
 \usepackage[noend]{algpseudocode}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,calc,fit,babel}
 
 \definecolor{ink}{HTML}{0B0B0B}
 \definecolor{ink2}{HTML}{52514E}
+\definecolor{muted}{HTML}{898781}
 \definecolor{accent}{HTML}{2A78D6}
+\definecolor{accentdark}{HTML}{184F95}
 \definecolor{accentwash}{HTML}{EEF4FC}
 \definecolor{warm}{HTML}{EB6834}
 \definecolor{warmwash}{HTML}{FDF1EB}
+\definecolor{green}{HTML}{1BAF7A}
+\definecolor{greendark}{HTML}{0E7A53}
+\definecolor{greenwash}{HTML}{EAF7F1}
+\definecolor{greywash}{HTML}{F5F5F2}
 \definecolor{rule}{HTML}{C3C2B7}
 
-\captionsetup{font=small,labelfont=bf,margin=0.5cm}
+% ------------------------------------------------------------- layout
+\captionsetup{font=small,labelfont={bf,color=accentdark},margin=0.3cm}
 \setlist{itemsep=2pt,topsep=4pt}
-\renewcommand{\arraystretch}{1.15}
+\renewcommand{\arraystretch}{1.18}
 \setlength{\parskip}{3pt}
+\setlength{\parindent}{0pt}
+\titleformat{\section}{\Large\bfseries\color{accentdark}}{\thesection}{0.7em}{}
+\titleformat{\subsection}{\large\bfseries\color{ink}}{\thesubsection}{0.7em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{ink}}{\thesubsubsection}{0.7em}{}
+\titlespacing*{\section}{0pt}{16pt}{8pt}
+\titlespacing*{\subsection}{0pt}{12pt}{5pt}
 
-\newtcolorbox{insight}{enhanced,breakable,colback=accentwash,colframe=accent,boxrule=0.5pt,arc=1.5pt,
-  left=6pt,right=6pt,top=4pt,bottom=4pt,fonttitle=\bfseries\small,coltitle=white,title=\NInsight}
-\newtcolorbox{caveat}{enhanced,breakable,colback=warmwash,colframe=warm,boxrule=0.5pt,arc=1.5pt,
-  left=6pt,right=6pt,top=4pt,bottom=4pt,fonttitle=\bfseries\small,coltitle=white,title=\NCaveat}
+\tcbset{boxstyle/.style={enhanced,breakable,boxrule=0pt,arc=1pt,left=8pt,right=8pt,top=5pt,bottom=5pt,
+  fonttitle=\bfseries\small,before skip=8pt,after skip=10pt}}
+% "Objectif de la section": a quiet opening line
+\newtcolorbox{objectif}{boxstyle,colback=greywash,colframe=greywash,borderline west={2.5pt}{0pt}{muted},
+  title=\NObjective,coltitle=ink2,colbacktitle=greywash,attach title to upper={\ }}
+% "À retenir": the take-away of a section
+\newtcolorbox{retenir}{boxstyle,colback=accentwash,colframe=accent,boxrule=0.6pt,title=\NInsight,coltitle=white}
+% the running example
+\newtcolorbox{filrouge}{boxstyle,colback=greenwash,colframe=green,boxrule=0.6pt,title=\NRunning,coltitle=white}
+% the controller's question and its answer
+\newtcolorbox{reponse}{boxstyle,colback=white,colframe=accentdark,boxrule=1pt,title=\NAnswer,coltitle=white}
+% limits and caveats
+\newtcolorbox{attention}{boxstyle,colback=warmwash,colframe=warm,boxrule=0.6pt,title=\NCaveat,coltitle=white}
+% the summary on the first page
+\newtcolorbox{bref}{boxstyle,colback=accentwash,colframe=accentdark,boxrule=0.8pt,title=\NSummary,coltitle=white,
+  fonttitle=\bfseries}
 
 % ------------------------------------------------------------- notation
 \newcommand{\R}{\mathbb{R}}
 \newcommand{\E}{\mathbb{E}}
 \newcommand{\Var}{\operatorname{Var}}
 \newcommand{\Cov}{\operatorname{Cov}}
-\newcommand{\sd}{\operatorname{sd}}
 \newcommand{\N}{\mathcal{N}}
-\newcommand{\T}{\mathrm{T}}
-\newcommand{\FO}{\mathrm{FO}}
-\newcommand{\diag}{\operatorname{diag}}
-\newcommand{\rank}{\operatorname{rank}}
+\newcommand{\M}{\mathcal{M}}
 \newcommand{\one}{\mathbf{1}}
-\newcommand{\tb}{\tilde{t}}
-\newcommand{\Aset}{\mathcal{A}}
-\newcommand{\Bset}{\mathcal{B}}
-\newcommand{\bA}{\overline{b}_{\Aset}}
-\newcommand{\DA}{\overline{D}_{\Aset}}
-\newcommand{\DB}{\overline{D}_{\Bset}}
+\newcommand{\tot}{\mathrm{tot}}
+\newcommand{\fo}{\mathrm{fo}}
+\newcommand{\opt}{\mathrm{opt}}
+\newcommand{\dv}{\mathrm{div}}
+\newcommand{\com}{\mathrm{com}}
+\newcommand{\Popt}{\mathcal{P}^{\opt}}
+\newcommand{\Pdiv}{\mathcal{P}^{\dv}}
+\newcommand{\qbar}{\bar q^{\,\opt}}
+\newcommand{\Dopt}{\bar D^{\opt}}
+\newcommand{\Ddiv}{\bar D^{\dv}}
+\newcommand{\gt}{\tilde g}
+\newcommand{\eh}{\hat\varepsilon}
+\newcommand{\sprod}[2]{\langle #1, #2\rangle}
+\newcommand{\norm}[1]{\lVert #1\rVert}
 \newcommand{\code}[1]{\texttt{#1}}
 
 \pagestyle{fancy}
 \fancyhf{}
 \renewcommand{\headrulewidth}{0.4pt}
+\makeatletter
+\renewcommand{\headrule}{{\color{rule}\hrule\@height\headrulewidth\@width\headwidth\vskip-\headrulewidth}}
+\makeatother
 \fancyhead[L]{\small\color{ink2}\shorttitle}
-\fancyhead[R]{\small\color{ink2}\draftname}
-\fancyfoot[C]{\small\thepage}
+\fancyhead[R]{\small\color{ink2}\nouppercase{\leftmark}}
+\fancyfoot[C]{\small\color{ink2}\thepage}
+\renewcommand{\sectionmark}[1]{\markboth{\thesection.\ #1}{}}
+\fancypagestyle{plain}{\fancyhf{}\renewcommand{\headrulewidth}{0pt}\fancyfoot[C]{\small\color{ink2}\thepage}}

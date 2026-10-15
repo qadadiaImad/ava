@@ -1,0 +1,15 @@
+{\footnotesize\begin{tabularx}{\linewidth}{>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{4.5cm}>{\raggedright\arraybackslash}X}
+\toprule
+Situation & What is injected & What the detector says \\
+\midrule
+Clean & no anomaly & no alarm ($\max_g|z_g|=\num{2.26}<c_\alpha=\num{3.42}$) \\
+Spot mismatch & option contributors price off a spot shifted by \pct[retain-explicit-plus]{+0.059} & level, $z=\num{-7.0}$: spot off by \pct[retain-explicit-plus]{+0.06} \\
+Error on one period & Totem 2027 level: \num{3.82} instead of \num{4.22} & step at 9M, $z=\num{6.3}$: dividend going ex in $\intoc{\text{6M}}{\text{9M}}$ lower by \num{0.29} (\pct[retain-explicit-plus]{-7}) in the dividend service than in the forwards \\
+Ex-date disagreement & \pct{38} of the option panel put the dividend going ex 19~days after the 6M expiry before it & spike at 6M, $z=\num{4.1}$: about \pct{18} of the dividend on the other side of the expiry; forward dispersion \num{16} times its neighbours' \\
+Stale profile & allocation profile shifted by \num[retain-explicit-plus]{-27}~days & season, $z=\num{-55.4}$: profile shifted by about \num[retain-explicit-plus]{-46}~days; then spike at 6M ($z=\num{-5.4}$) \\
+Forward outlier & consensus $\ln F$ at 2Y shifted by \num[retain-explicit-plus]{+95}~bp (\num{5.3} standard deviations) & spike at 2Y, $z=\num{-6.7}$: $\ln F$ off by \num[retain-explicit-plus]{+81}~bp \\
+Biased long sub-panel & from 3Y on, the 7 remaining option contributors overstate later dividends by \pct{9} & no alarm ($\max_g|z_g|=\num{2.31}<c_\alpha=\num{3.43}$) \\
+FO repo mismark & FO repo shifted by \num[retain-explicit-plus]{+16}~bp, Totem untouched & no Totem anomaly; level $\hat\beta_0=\num{-17.8}$~bp (standard error \num{5.4}), beyond the threshold: possible FO mismark \\
+Gross/net bias & every Totem period multiplied by \num{0.89} & step at 9M, $z=\num{5.9}$: dividend going ex in $\intoc{\text{6M}}{\text{9M}}$ lower by \num{0.27} (\pct[retain-explicit-plus]{-6}) in the dividend service than in the forwards \\
+\bottomrule
+\end{tabularx}}

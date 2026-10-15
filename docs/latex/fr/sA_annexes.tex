@@ -1,0 +1,296 @@
+\section{Démonstrations et compléments}\label{app-proofs}
+
+\subsection{Le bootstrap}\label{app-bootstrap}
+On fixe $q_1, \dots, q_{k-1}$ et l'on pose $x=q_kT_k$. Pour un dividende détaché dans $\intoc{T_{k-1}}{T_k}$, le repo
+cumulé interpolé vaut $q(t_i)\,t_i=q_{k-1}T_{k-1}+w_i\,(x-q_{k-1}T_{k-1})$, avec
+$w_i=(t_i-T_{k-1})/(T_k-T_{k-1})\in\intoc{0}{1}$. Le forward du modèle en $T_k$ s'écrit donc
+\begin{multline}\label{eq-fk}
+\mathcal F_k(x)=S_0\,e^{r_kT_k-x}-\sum_{t_i\le T_{k-1}}d_i\,e^{(r_kT_k-r(t_i)t_i)-(x-q(t_i)t_i)}\\
+-\sum_{T_{k-1}<t_i\le T_k}d_i\,e^{(r_kT_k-r(t_i)t_i)-(1-w_i)(x-q_{k-1}T_{k-1})} .
+\end{multline}
+
+\begin{lemma}[Monotonie]\label{lem-monotone}
+Pour tout $x$, $\mathcal F_k'(x)\le-\mathcal F_k(x)$. En particulier, la fonction $x\mapsto\ln\mathcal F_k(x)-\ln F_k$
+a une dérivée inférieure ou égale à $-1$ là où $\mathcal F_k>0$.
+\end{lemma}
+\begin{proof}
+En dérivant \eqref{eq-fk} terme à terme,
+\[
+\mathcal F_k'(x)=-S_0e^{(\cdot)}+\sum_{t_i\le T_{k-1}}d_ie^{(\cdot)}+\sum_{T_{k-1}<t_i\le T_k}(1-w_i)\,d_ie^{(\cdot)},
+\]
+où chaque exponentielle est celle du terme correspondant de \eqref{eq-fk}. Chaque terme de dividende est positif et $1-w_i\le1$ ; remplacer $1-w_i$ par $1$ ne peut qu'augmenter le membre de
+droite, qui vaut alors $-\mathcal F_k(x)$.
+\end{proof}
+
+\begin{proof}[Démonstration de la \cref{prop-bootstrap}]
+Quand $x\to-\infty$,
+\[
+e^{x}\,\mathcal F_k(x)\longrightarrow e^{r_kT_k}\Bigl(S_0-\sum_{t_i\le T_{k-1}}d_i\,e^{-(r(t_i)-q(t_i))\,t_i}\Bigr)
+=e^{r_kT_k}\bigl(S_0-D_{k-1}\bigr)>0,
+\]
+car les termes de la période en cours ne croissent que comme $e^{-(1-w_i)x}$ ; donc $\mathcal F_k(x)\to+\infty$. Quand
+$x$ croît, $\mathcal F_k$ décroît strictement tant qu'elle est positive (\cref{lem-monotone}), puis tend vers $0$ ou
+change de signe ; par continuité, elle prend chaque valeur de $\intoo{0}{+\infty}$ exactement une fois sur la branche
+où elle est positive. Sur cette branche, $x\mapsto\ln\mathcal F_k(x)-\ln F_k$ est de classe $C^2$ et de dérivée de
+valeur absolue au moins $1$ : la méthode de Newton converge quadratiquement au voisinage de la racine, et la
+sécurisation par dichotomie (on conserve un encadrement de la racine et on revient à son milieu quand le pas de Newton
+en sort) rend la convergence globale.
+\end{proof}
+
+\begin{example}[Un bootstrap à la main]\label{ex-bootstrap}
+Spot $100$, taux plat de \pct{3}, dividendes de $\num{1.5}$ en $t=\num{0.30}$ et de $\num{2.0}$ en $t=\num{0.80}$,
+piliers $\num{0.25}$, $\num{0.5}$ et $1$, repo vrai de $80$, $70$ et $60$\,pb. Les forwards et le repo implicite sont :
+\begin{center}\input{generated/\lang/tab_boot}\end{center}
+Au troisième pilier, le résidu de Newton $|\ln\mathcal F_3(x)-\ln F_3|$ passe de \vNewtonA{} à \vNewtonB{} en une
+itération, puis à zéro à la précision machine à la suivante. Sans dividende dans la période, la fonction est affine et
+une seule itération suffit.
+\end{example}
+
+\subsection{La parité call--put}\label{app-parity}
+\begin{lemma}[Facteurs d'actualisation hétérogènes]
+Si le contributeur $j$ actualise avec le facteur $B_j$, le zéro de $\bar C-\bar P$ vaut
+$K^\ast=\sum_jB_jF_j\big/\sum_jB_j$, une moyenne des forwards pondérée par les facteurs d'actualisation. Son écart à
+la moyenne simple vaut $\Cov(B_j, F_j)/\bar B$, du second ordre.
+\end{lemma}
+\begin{proof}
+$\bar C-\bar P=\frac1n\sum_jB_j(F_j-K)$ s'annule en $K^\ast$, et
+$K^\ast-\bar F=\bigl(\overline{BF}-\bar B\,\bar F\bigr)/\bar B$.
+\end{proof}
+
+\begin{example}[Parité]\label{ex-parity}
+Strikes $90$, $100$ et $110$, puts à $\num{2.1}$, $\num{5.4}$ et $\num{10.9}$, calls construits à partir de
+$F=\num{102.3}$ et $B(0, T)=\num{0.97}$. La régression pondérée de $\bar C-\bar P$ sur $K$ donne $F=\vParF$ et
+$B(0, T)=\vParDF$. Si l'on multiplie tous les prix par $\num{1.02}$ (un facteur d'actualisation erroné), on obtient
+$F=\vParFtwo$ et $B(0, T)=\vParDFtwo$ : le forward ne change pas.
+\end{example}
+
+\subsection{La covariance du bruit}\label{app-noise}
+\begin{lemma}[Covariance cumulative]\label{lem-cumcov}
+Soit $s\in\R^N$ à composantes positives et croissantes, et $w\in[0,1]$. La matrice
+$C_{kl}=w\,s_ks_l+(1-w)\min(s_k, s_l)^2$ est la matrice de covariance de $Z_k=\sqrt{w}\,s_k\,\xi+\sqrt{1-w}\,B_{s_k^2}$,
+où $\xi\sim\N(0,1)$ est indépendante d'un mouvement brownien standard $(B_t)_{t\ge0}$ ; elle est donc symétrique
+positive. Pour $w=0$, la corrélation entre $Z_k$ et $Z_l$, $k<l$, vaut $s_k/s_l$.
+\end{lemma}
+\begin{proof}
+$\Cov(Z_k, Z_l)=w\,s_ks_l+(1-w)\Cov\bigl(B_{s_k^2}, B_{s_l^2}\bigr)=w\,s_ks_l+(1-w)\min(s_k^2, s_l^2)$. Pour $w=0$ et $k<l$,
+$\Cov(Z_k, Z_l)/\sqrt{\Var Z_k\Var Z_l}=s_k^2/(s_ks_l)=s_k/s_l$.
+\end{proof}
+
+\begin{proof}[Démonstration de la \cref{prop-noise}]
+D'après le \cref{lem-logf}, l'erreur du contributeur $j$ sur $\ln F_j(T_k)$ vaut $-T_ku_j-v_j(T_k)/(S_0-D_k)$. La partie
+repo est un niveau persistant : sa covariance entre $T_k$ et $T_l$ vaut $\sigma_q^2T_kT_l$. La partie dividendes est
+cumulative, formée d'un facteur persistant et d'incréments à chaque détachement : sa covariance est celle du
+\cref{lem-cumcov}, appliqué à la dispersion $s'$ (rendue croissante). Les deux parties étant indépendantes, on les
+additionne ; la \cref{prop-nested} donne la division par $\max(n^{\opt}_k, n^{\opt}_l)$, d'où \eqref{eq-gamma-opt}.
+Pour le panel dividendes, le \cref{lem-allocation} donne
+$e^{\dv}_k=\sum_pa_{kp}\,\delta\ell_p/(S_0-D_k)=(A_S\,\delta\ell)_k$, où $\delta\ell$ est l'erreur des niveaux de
+consensus, de covariance $\Gamma^\ell$ d'après la \cref{prop-nested} ; d'où \eqref{eq-gamma-div}. Les deux panels étant
+indépendants, $\Gamma=\Gamma^{\opt}+\Gamma^{\dv}$.
+\end{proof}
+
+\subsection{La loi de Student du test d'erreur de marquage FO}\label{app-student}
+\begin{lemma}
+Soit $\hat\beta_0\sim\N(\beta_0, c\,\sigma^2)$ et $\hat\sigma^2$ une estimation indépendante telle que
+$\nu\,\hat\sigma^2/\sigma^2\sim\chi^2(\nu)$. Alors $(\hat\beta_0-\beta_0)/\sqrt{c\,\hat\sigma^2}$ suit une loi de Student à
+$\nu$ degrés de liberté.
+\end{lemma}
+\begin{proof}
+C'est la définition de la loi de Student : une variable normale centrée réduite divisée par la racine d'une variable
+$\chi^2(\nu)/\nu$ indépendante.
+\end{proof}
+Avec des dispersions estimées sur $n^{\opt}$ contributeurs, $\nu\approx n^{\opt}-1$ sur le court terme, là où se lit
+l'incertitude sur le niveau de repo ; l'échelle de niveau $s$ corrige ce que cette approximation laisse échapper.
+
+\subsection{Le terme du second ordre de l'identité de contrôle}\label{app-second}
+\begin{proposition}\label{prop-second}
+Pour un seul pilier, avec $F(q, D)=e^{(r-q)T}(S_0-D)$ et $V=\varphi\circ F$, le total au premier ordre (lignes
+dividendes et repo) vaut
+\[
+\varphi'(F)\,\Delta F-\varphi'(F)\,F\Bigl[\tfrac12T^2\,\Delta q^2+\frac{T\,\Delta q\,\Delta D}{S_0-D}\Bigr]
++O\bigl(\norm{\Delta}^3\bigr),
+\]
+alors que le contrôle exact vaut $\varphi'(F)\,\Delta F+\frac12\varphi''(F)\,\Delta F^2+O(\norm{\Delta}^3)$. Toute la
+dépendance du total au premier ordre vis-à-vis du panel dividendes est donc contenue dans le crochet.
+\end{proposition}
+\begin{proof}
+On développe $F$ au second ordre, avec $\partial_qF=-TF$, $\partial_DF=-F/(S_0-D)$, $\partial^2_{qq}F=T^2F$,
+$\partial^2_{qD}F=TF/(S_0-D)$ et $\partial^2_{DD}F=0$ :
+$\Delta F=\partial_qF\,\Delta q+\partial_DF\,\Delta D+\frac12T^2F\,\Delta q^2+TF\,\Delta q\,\Delta D/(S_0-D)+O(3)$. Le total au
+premier ordre vaut $\varphi'(F)(\partial_qF\,\Delta q+\partial_DF\,\Delta D)$ ; on substitue.
+\end{proof}
+Pour plusieurs piliers, la même expression s'additionne pilier par pilier, plus des termes croisés du second ordre
+créés par l'interpolation du portage entre piliers.
+
+\subsection{Le rapport signal sur bruit dans un plan apparié}
+\begin{lemma}
+Si un scénario ajoute un effet $e\in\R^N$ à l'écart de portage d'un sous-jacent sans modifier son bruit (même tirage de
+contributeurs), alors $\delta^{\text{scénario}}-\delta^{\text{sain}}=e$, et le rapport signal sur bruit
+$\lambda=\norm{\Pi We}$ du \cref{cor-power} est connu exactement. Pour une seule forme type, $e=a\,g$ et
+$\lambda=|a|\,\norm{\gt}$.
+\end{lemma}
+\begin{proof}
+Le bruit s'élimine dans la différence ; pour $e=a\,g$, $\Pi We=a\,\gt$.
+\end{proof}
+
+\section{Algorithmes}\label{app-algos}
+\begin{algorithm}[H]
+\caption{Bootstrap du repo implicite}\label{alg-bootstrap}
+\begin{algorithmic}[1]
+\Require spot $S_0$, taux $r(\cdot)$, dividendes $(t_i, d_i)$, piliers $T_1<\dots<T_N$, forwards $F_1, \dots, F_N$
+\For{$k=1, \dots, N$}
+  \State construire $\mathcal F_k$ selon \eqref{eq-fk} à partir de $q_1, \dots, q_{k-1}$
+  \State $x\gets$ point de départ : dividendes de la période actualisés au repo précédent
+  \Repeat
+    \State $h\gets\ln\mathcal F_k(x)-\ln F_k$ ; mettre à jour l'encadrement $[x^-, x^+]$ selon le signe de $h$
+    \State $x\gets x-h\,\mathcal F_k(x)/\mathcal F_k'(x)$ ; si $x\notin\intoo{x^-}{x^+}$, $x\gets(x^-+x^+)/2$
+  \Until{le pas est inférieur à la tolérance}
+  \State $q_k\gets x/T_k$
+\EndFor
+\State \Return $(q_1, \dots, q_N)$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{Détection structurelle}\label{alg-detect}
+\begin{algorithmic}[1]
+\Require écart de portage $\delta$, covariance $\Gamma$, échelle $\kappa$, matrice $X$, formes types $\mathcal G$, niveau $\alpha$
+\State $W\gets L^{-1}$ avec $\kappa\Gamma=L\,\tr{L}$ ; $\Pi\gets$ projection sur l'orthogonal de $WX$ ; $\eh\gets\Pi W\delta$
+\State pour chaque $g\in\mathcal G$ : $\gt\gets\Pi Wg$, $z_g\gets\sprod{\gt}{\eh}/\norm{\gt}$
+\State $c_\alpha\gets$ quantile d'ordre $1-\alpha/2$ de $\max_g|Z_g|$, $Z\sim\N(0, \Omega)$ \Comment{\cref{prop-family}}
+\State alerte $\gets\max_g|z_g|>c_\alpha$ \textbf{ou} $\norm{\eh}^2>\chi^2_{1-\alpha/2}(N-2)$
+\If{alerte}
+  \State $\mathcal S\gets\emptyset$ ; \textbf{répéter} : ajouter la forme de plus grand $|z|$ après projection de
+  $[X, \mathcal S]$,
+  \Statex \hspace{\algorithmicindent} \textbf{tant que} ce $|z|$ dépasse $c_\alpha$
+\EndIf
+\State ajustement conjoint de $\delta$ sur $[X, \mathcal S]$ par moindres carrés généralisés ; amplitudes en unités
+naturelles ; courbe réparée
+\State erreur de marquage FO possible si $|\hat\beta_0|>\max\bigl(10\text{\,pb}, t_{\nu,1-\alpha/2}\,s\,\sigma(\hat\beta_0)\bigr)$
+\end{algorithmic}
+\end{algorithm}
+
+\begin{algorithm}[H]
+\caption{Calibration de l'échelle $\kappa$}\label{alg-kappa}
+\begin{algorithmic}[1]
+\Require sous-jacents sains $i\in\ient1n$ avec $\bigl(\max_g|z_{g,i}|, c_{\alpha,i}, \norm{\eh_i}^2\bigr)$ calculés pour
+$\kappa=1$ ; cible $\alpha$
+\State $u^-\gets\ln10^{-3}$, $u^+\gets\ln10^{3}$
+\For{$60$ itérations}
+  \State $u\gets(u^-+u^+)/2$ ; $\hat\alpha\gets\frac1n\sum_i\one\bigl\{\max_g|z_{g,i}|\,e^{-u/2}>c_{\alpha,i}\ \text{ou}\
+  \norm{\eh_i}^2e^{-u}>\chi^2_{1-\alpha/2}(N-2)\bigr\}$
+  \State \textbf{si} $\hat\alpha\le\alpha$ \textbf{alors} $u^+\gets u$ \textbf{sinon} $u^-\gets u$
+\EndFor
+\State \Return $\kappa=e^{u^+}$
+\end{algorithmic}
+\end{algorithm}
+
+\section{Banc d'essai : spécification et résultats complémentaires}\label{app-synthetic}
+\subsection{Spécification du marché synthétique}
+\begin{itemize}
+\item \textbf{Dividendes.} Actions européennes : dividende annuel détaché entre le 20~avril et le 30~mai (\pct{35} des
+titres versent aussi un acompte de \pct{40} en novembre) ; actions américaines : trimestriel ; titres difficiles à
+emprunter : annuel ou trimestriel ; indice européen : flux mensuel de poids $(1, 2, 4, 14, 24, 18, 6, 4, 3, 4, 3, 2)$
+par mois civil. Rendement et croissance tirés par sous-jacent dans les intervalles du \cref{tab-categories}.
+\item \textbf{Repo.} $q(T)=q_\infty+(q_0-q_\infty)\,e^{-T/\tau}$, avec $q_0$, $q_\infty$ et $\tau$ tirés par sous-jacent.
+\item \textbf{Vues de dividendes des contributeurs.}
+$d_{ij}=d_i\bigl(1+\sigma(t_i)\,[\num{0.7}\,z_j+\sqrt{1-\num{0.7}^2}\,e_{ij}]\bigr)$, avec $\sigma(t)$ affine en $t$ et
+propre à chaque catégorie, $z_j$ persistant et $e_{ij}$ propre à chaque dividende ; les dividendes déjà annoncés
+(avant $\num{0.15}$ an) ont une dispersion dix fois plus petite.
+\item \textbf{Vues de repo des contributeurs.} $q_j(T)=q(T)+\sigma_q\bigl(u_j+\num{0.6}\,v_j\,\varsigma(T)\bigr)$, où
+$\varsigma$ est une inclinaison linéaire en $\ln T$ de $\num{-0.5}$ à $\num{0.5}$ ; $\sigma_q$ vaut $15$, $10$, $60$ et
+$8$\,pb pour les quatre catégories.
+\item \textbf{Options.} Strikes de \pct{80} à \pct{120} du spot ; volatilité avec structure par terme et pente de
+smile de $\num{-0.10}$ par unité de log-moneyness ; bruit de volatilité d'un point par contributeur, bruit de prix de
+$2\times10^{-5}$ du spot.
+\item \textbf{Consensus.} Moyenne sur le panel après exclusion des cotations situées à plus de quatre écarts absolus
+médians normalisés de la médiane.
+\item \textbf{FO.} Dividendes avec un bruit de \pct{1}, repo avec une erreur de niveau de $3$\,pb ; spot égal au spot de
+référence Totem.
+\end{itemize}
+
+\subsection{Résultats complémentaires}\label{app-results}
+\begin{table}[H]
+\centering
+\caption{Aire sous la courbe ROC par rapport aux sous-jacents sains (qualité du classement, indépendante du seuil).}
+\label{tab-auc}
+\input{generated/\lang/tab_auc}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Taux de fausses alertes réalisé sur de nouveaux sous-jacents sains, par catégorie (cible \vFPR), et échelle
+$\kappa$ calibrée.}\label{tab-fpr}
+\input{generated/\lang/tab_fpr}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Détecteur structurel : part des sous-jacents signalés, par scénario et par catégorie.}\label{tab-bycat}
+\input{generated/\lang/tab_bycat}
+\end{table}
+
+\begin{table}[H]
+\centering
+\caption{Détecteur structurel : détection, explication (la première explication cite le mécanisme injecté et sa
+position) et alertes d'erreur de marquage FO.}\label{tab-attribution}
+\input{generated/\lang/tab_attribution}
+\end{table}
+
+\section{Notations}\label{app-notation}
+\begin{center}\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{4.4cm}>{\raggedright\arraybackslash}p{10.6cm}@{}}
+\toprule
+Symbole & Signification\\
+\midrule
+$S_0$, $r(T)$, $B(0, T)$ & spot, taux zéro-coupon, facteur d'actualisation\\
+$q(T)$, $q_k$ & taux zéro-coupon de repo, sa valeur au pilier $T_k$\\
+$t_i$, $d_i$, $\tilde d_i$ & dates de détachement, dividendes, dividendes actualisés au taux de portage\\
+$D(T)$, $F(T)$ & dividendes cumulés actualisés, forward (\cref{def-forward})\\
+$T_1<\dots<T_N$ & maturités Totem (piliers), $N=11$\\
+$I_p$, $\ell_p$, $\pi_i$ & périodes de dividendes, $p\in\ient1m$, leurs niveaux, poids du profil d'allocation\\
+$A=(a_{kp})$, $A_S$ & matrice d'allocation (\cref{lem-allocation}), $(A_S)_{kp}=a_{kp}/(S_0-D_k)$\\
+$\Popt_k$, $\Pdiv_p$ & panels options et dividendes, de tailles $n^{\opt}_k$ et $n^{\dv}_p$ ; $n^{\com}$ contributeurs
+communs\\
+$\qbar$, $\Dopt$, $\Ddiv$ & repo et dividendes moyens du panel options, dividendes du panel dividendes\\
+$x^{\tot}$, $x^{\fo}$ & grandeur Totem, grandeur FO\\
+$\delta_k$ & écart de portage $(q^{\tot}_k-q^{\fo}_k)\,T_k$ (\cref{def-delta})\\
+$\hat q$ & repo implicite des forwards Totem avec les dividendes FO\\
+$\psi$, $J$ & application repo implicite, sa jacobienne $\partial_\ell\psi$ (\cref{lem-jacobian})\\
+$s^q$, $s^\ell$, $\eta$ & sensibilités FO au repo et aux dividendes, exposition non-forward $s^\ell+\tr{J}s^q$\\
+$X$, $\beta=(\beta_0, \beta_1)$ & modèle nul : écart de repo lisse $\beta_0+\beta_1\ln T$\\
+$\Gamma=\Gamma^{\opt}+\Gamma^{\dv}$, $\Gamma^\ell$, $\kappa$ & covariance du bruit de portage, des niveaux de
+dividendes, échelle\\
+$g$, $a_g$, $\mathcal G$, $\mathcal S$ & forme type, son amplitude, ensemble des formes types, formes retenues\\
+$W$, $\Pi$, $\eh$, $\gt$ & blanchiment, projection, résidu blanchi, forme type blanchie\\
+$z_g$, $c_\alpha$, $\lambda$ & statistique de filtre adapté, seuil commun, rapport signal sur bruit\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Reproductibilité}\label{app-repro}
+\begin{minipage}{\linewidth}
+Tous les nombres, tableaux et figures de cette note sont produits par le code du dépôt :
+\begin{center}\small
+\begin{tabular}{l}
+\code{pip install -e .[benchmark,report,dev]}\\
+\code{pytest}\\
+\code{python scripts/run\_benchmark.py} \quad (environ \vRuntime{} minutes)\\
+\code{PYTHONPATH=. python scripts/build\_latex.py}
+\end{tabular}
+\end{center}
+\end{minipage}
+
+\begin{thebibliography}{9}
+\bibitem{eilers1996} P.~H.~C. Eilers et B.~D. Marx. Flexible smoothing with B-splines and penalties.
+\emph{Statistical Science}, 11(2):89--121, 1996.
+\bibitem{lovell1963} M.~C. Lovell. Seasonal adjustment of economic time series and multiple regression analysis.
+\emph{Journal of the American Statistical Association}, 58(304):993--1010, 1963.
+\bibitem{mallat1993} S.~G. Mallat et Z.~Zhang. Matching pursuits with time-frequency dictionaries.
+\emph{IEEE Transactions on Signal Processing}, 41(12):3397--3415, 1993.
+\bibitem{eu2016} Règlement délégué (UE) 2016/101 de la Commission du 26 octobre 2015 complétant le règlement (UE)
+n\textsuperscript{o}~575/2013 par des normes techniques de réglementation relatives à l'évaluation prudente.
+\bibitem{scharf1994} L.~L. Scharf et B.~Friedlander. Matched subspace detectors. \emph{IEEE Transactions on Signal
+Processing}, 42(8):2146--2157, 1994.
+\bibitem{sidak1967} Z.~Šidák. Rectangular confidence regions for the means of multivariate normal distributions.
+\emph{Journal of the American Statistical Association}, 62(318):626--633, 1967.
+\end{thebibliography}

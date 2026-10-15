@@ -1,0 +1,80 @@
+\section{Recommendations and implementation}\label{sec-reco}
+
+\begin{objectif}
+Turn the results into control rules, and set out the data needed and the monthly procedure.
+\end{objectif}
+
+\subsection{What we recommend}
+\begin{enumerate}
+\item \textbf{Control the forward, not the split.} For each book, compute the forward line (Totem forwards, FO
+dividends) and the non-forward line $\sprod{\eta}{\Delta\ell}$. For forward-linear books, the forward line \emph{is}
+the control, and it does not depend on the dividend contributors (\cref{thm-control,thm-exact}). The Totem dividends
+are needed only where $\eta\ne0$: dividend swaps and futures, stock borrow and lending, total return swap funding,
+American exercise, exotics.
+\item \textbf{Do not add up without offsetting} large dividend and repo lines of opposite signs: this is a split
+artefact. In prudent valuation, take the forward as the parameter where $\eta\approx0$.
+\item \textbf{Judge the curve in carry, against a noise band.} Replace visual checks and thresholds in basis points
+of repo by the carry difference $\delta$ and the covariance $\Gamma$ computed from Totem's dispersions and contributor
+counts (\cref{prop-noise}).
+\item \textbf{Deploy the structural detector} with $\alpha=\pct{2}$, and publish for each alarm the explanation in
+natural units, the repaired curve and, separately, the FO mismark test.
+\item \textbf{Keep B-splines, mixtures and neural networks downstream}: on the detector's outputs and residuals, and to
+pool the calibration by region and category.
+\item \textbf{Calibrate and validate on real history}: $\kappa$ and the level scale by region and category, every
+quarter, then a validation on twelve to twenty-four months of snapshots with labelled incidents.
+\end{enumerate}
+
+\subsection{Data needed}
+\begin{center}\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{9.3cm}
+>{\raggedright\arraybackslash}p{2.6cm}@{}}
+\toprule
+Data & Fields & Size\\
+\midrule
+Totem options & maturities; strikes; consensus call and put prices; contributor count; dispersion of the contributors'
+forwards (or an estimate); reference spot & $N$ maturities\\
+Totem dividends & period bounds; consensus level; dispersion; contributor count & $m$ periods\\
+FO market & spot at the Totem snapshot time; rate curve; repo at the Totem maturities; dividend forecast (dates and
+amounts) & $N$; list\\
+FO risk & repo sensitivities per pillar, mapped onto the Totem maturities; dividend sensitivities per Totem period &
+$N+m$ per book\\
+History & twelve to twenty-four monthly snapshots and known incidents & calibration, validation\\
+\bottomrule
+\end{tabular}
+\end{center}
+If Totem does not publish the dispersion of the contributors' forwards, it can be estimated from the dispersion of deep
+in-the-money calls and puts, or calibrated on history: the detector needs the right shape across maturities, and
+$\kappa$ corrects a common bias.
+
+\subsection{Monthly procedure}
+\begin{enumerate}
+\item Load the Totem and FO snapshots at the same valuation time; check the reference spot.
+\item Compute the forwards by parity; review the implied discount factor, the parity residuals and the dispersion
+ratios.
+\item Allocate the Totem dividend levels on the FO ex-date profile; compute the implied repo with the Totem dividends
+($q^{\tot}$) and with the FO dividends ($\hat q$).
+\item Build $\Gamma$ and run the detector with the $\kappa$ and level scale of the region and category.
+\item Compute the control lines per book (forward, dividend, repo, non-forward) and the materiality of the split.
+\item Review the alarms with their explanations, and the possible FO mismarks; use the repaired curve when a Totem
+anomaly is confirmed.
+\item Record the decision taken on each alarm: these labels feed the next calibration and the validation.
+\end{enumerate}
+
+\subsection{Governance and next steps}
+$\kappa$ and the level scale are recalibrated every quarter by region and category on clean history, with an alarm
+budget of \vFPR{} of names per month. The realised alarm rate and the share of explanations accepted by the
+controllers are tracked. Where they exist, market anchors complement the detector: listed index and dividend futures,
+total return futures, stock borrow fees for the short end. The next step is to run the pipeline on twelve to
+twenty-four months of real Totem and FO snapshots, calibrate the settings by region and category, and measure the
+quality of the explanations on labelled incidents.
+
+\section*{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+Implied repo curves are irregular because they are the residual of two consensus averages computed on different
+panels, and part of that residual cannot be removed by any method that only sees the consensus (\cref{thm-nonid}). Two
+practical consequences follow. For control, a forward-linear book does not need the split between repo and dividends:
+the repo control is the forward control minus the dividend control, exactly under full revaluation, and the
+non-forward exposure $\eta$ tells, book by book, when the split matters. For detection, the mechanisms that cause real
+anomalies have known shapes in the carry difference; matched filters, with a noise computed from Totem's own
+statistics, detect them at a fixed false alarm rate, explain them in natural units and tell them apart from FO
+mismarks.

@@ -1,0 +1,241 @@
+\section{D'où viennent les courbes aberrantes ?}\label{sec-diagnostic}
+
+\begin{objectif}
+(O1) Décomposer le repo implicite, calculer la taille du bruit normal, et donner la forme que laisse dans l'écart de
+portage chacun des mécanismes qui produisent de vraies anomalies.
+\end{objectif}
+
+\subsection{L'écart de panel}\label{sec-gap}
+On se place sous les \cref{hyp-coherent,hyp-panels,hyp-consensus} et à une maturité $T$ fixée. Les vues des
+contributeurs sont des perturbations d'un centre commun, $q_j=q+u_j$ et $D_j=D+v_j$, où $u_j$ et $v_j$ sont d'ordre
+$\epsilon$. On note $\qbar$ et $\Dopt$ les moyennes des $q_j$ et des $D_j$ sur le panel options, et $\Ddiv$ le
+consensus du panel dividendes, alloué à la maturité $T$.
+
+\begin{proposition}[Décomposition du repo implicite]\label{prop-gap}
+\begin{equation}\label{eq-gap}
+q^{\tot}(T)=\qbar(T)+\frac{\Dopt(T)-\Ddiv(T)}{T\,\bigl(S_0-D(T)\bigr)}+O(\epsilon^2).
+\end{equation}
+\end{proposition}
+\begin{proof}
+Pour $j\in\Popt$, le \cref{lem-logf} donne $\ln F_j=\ln F-T\,u_j-v_j/(S_0-D)+O(\epsilon^2)$. Le forward Totem est la
+moyenne des $F_j$, et le logarithme d'une moyenne est égal à la moyenne des logarithmes à un terme d'ordre $\epsilon^2$
+près ; donc $\ln F^{\tot}=\ln F-T\,\bar u^{\opt}-\bar v^{\opt}/(S_0-D)+O(\epsilon^2)$. Le contrôleur retire les
+dividendes de consensus $D^{\tot}=D+\bar v^{\dv}$ :
+\[
+q^{\tot}T=rT-\ln F^{\tot}+\ln\bigl(S_0-D^{\tot}\bigr)=qT+T\,\bar u^{\opt}+\frac{\bar v^{\opt}-\bar v^{\dv}}{S_0-D}
++O(\epsilon^2).
+\]
+On divise par $T$, avec $q+\bar u^{\opt}=\qbar$ et $\bar v^{\opt}-\bar v^{\dv}=\Dopt-\Ddiv$.
+\end{proof}
+
+Le repo implicite est donc le repo moyen du panel options, plus un \emph{écart de panel} : la différence entre la vue
+moyenne des dividendes du panel options, que personne n'observe, et celle du panel dividendes, divisée par
+$T(S_0-D)$. Pour un contributeur donné, une erreur sur ses dividendes se compense exactement dans son repo implicite ;
+entre deux panels, elle ne se compense pas.
+
+\begin{corollary}[Taille de l'écart de panel]\label{cor-gap}
+On suppose les erreurs de vue sur $D(T)$ indépendantes, de même loi et d'écart-type $\sigma_D(T)$ dans les deux
+panels, et les $n^{\com}$ contributeurs communs aux deux services cohérents avec eux-mêmes. Alors
+\begin{equation}\label{eq-gap-sd}
+\sigma\bigl(q^{\tot}-\qbar\bigr)=\frac{\sigma_D(T)}{T\,\bigl(S_0-D(T)\bigr)}
+\sqrt{\frac{1}{n^{\opt}}+\frac{1}{n^{\dv}}-\frac{2\,n^{\com}}{n^{\opt}n^{\dv}}} .
+\end{equation}
+\end{corollary}
+\begin{proof}
+$\Dopt-\Ddiv=\sum_j(\alpha_j-\gamma_j)\,v_j$, avec $\alpha_j=1/n^{\opt}$ sur le panel options, $\gamma_j=1/n^{\dv}$ sur
+le panel dividendes, et $0$ ailleurs. Sa variance vaut
+$\sigma_D^2\sum_j(\alpha_j-\gamma_j)^2=\sigma_D^2\bigl[n^{\com}(1/n^{\opt}-1/n^{\dv})^2+(n^{\opt}-n^{\com})/(n^{\opt})^2
++(n^{\dv}-n^{\com})/(n^{\dv})^2\bigr]$, qui se simplifie en
+$\sigma_D^2\bigl(1/n^{\opt}+1/n^{\dv}-2n^{\com}/(n^{\opt}n^{\dv})\bigr)$.
+\end{proof}
+
+L'écart disparaît si les deux panels sont identiques ($n^{\com}=n^{\opt}=n^{\dv}$) ; il est maximal s'ils sont
+disjoints. La dispersion $\sigma_D(T)$ d'un dividende cumulé croît au moins comme $T$ : l'écart de panel est petit en
+portage sur le court terme, mais il ne diminue pas en repo sur le long terme.
+
+\begin{example}[Taille de l'écart pour une action]\label{ex-gap}
+On reprend le modèle de l'exemple fil rouge : spot $100$, dividende annuel de $\num{4.2}$ détaché début mai, et chaque
+contributeur se trompe sur le dividende détaché en $t$ d'une erreur relative d'écart-type $\num{0.01}+\num{0.03}\,t$,
+dont une part est commune à tous ses dividendes. Les panels sont disjoints, de la taille de ceux de l'exemple fil
+rouge, et les contributeurs options divergent aussi de $15$\,pb sur le repo, ce que le repo implicite ne doit pas
+capter. La formule \eqref{eq-gap-sd} et une simulation contributeur par contributeur donnent :
+\begin{center}\input{generated/\lang/tab_gap}\end{center}
+L'écart seul produit \vGapOneY\,pb de bruit sur le repo à un an et \vGapFiveY\,pb à cinq ans, sans aucune erreur dans
+Totem. Il est nul avant le premier détachement, saute à chaque détachement, puis décroît en $1/T$ jusqu'au suivant
+(\cref{fig-gap}).
+\end{example}
+
+\begin{figure}[ht]
+\centering\includegraphics[width=\linewidth]{figures/\lang/panel_gap.pdf}
+\caption{(a) Bruit du repo implicite dû au seul écart de panel, formule \eqref{eq-gap-sd}, pour les panels de
+l'exemple fil rouge et deux autres tailles (options / dividendes) : il naît à chaque détachement puis décroît en $1/T$.
+(b) Un décalage $\varepsilon$ du spot est constant en portage, donc vaut $\varepsilon/T$ en repo
+(\cref{prop-signatures}).}
+\label{fig-gap}
+\end{figure}
+
+\subsection{Les sorties de contributeurs}\label{sec-nested}
+Les panels se réduisent avec la maturité. Comme ils sont emboîtés, la moyenne sur un petit panel n'est pas
+indépendante de la moyenne sur un grand panel qui le contient.
+
+\begin{proposition}[Moyennes sur des panels emboîtés]\label{prop-nested}
+Soit $e_{jk}$ l'erreur du contributeur $j$ à la maturité $T_k$, indépendante d'un contributeur à l'autre, avec
+$\Var e_{jk}=\sigma_k^2$ et $\Cov(e_{jk}, e_{jl})=\rho_{kl}\,\sigma_k\sigma_l$. Si les panels sont emboîtés, de tailles
+$n_k$, les moyennes $\bar e_k$ vérifient
+\begin{equation}\label{eq-nested}
+\Cov(\bar e_k, \bar e_l)=\frac{\rho_{kl}\,\sigma_k\sigma_l}{\max(n_k, n_l)} .
+\end{equation}
+En particulier, pour des vues persistantes ($\rho_{kl}=1$, $\sigma_k=\sigma_l=\sigma$) et $n_l\le n_k$, le saut de la
+moyenne quand le panel passe de $n_k$ à $n_l$ contributeurs a pour écart-type $\sigma\sqrt{1/n_l-1/n_k}$.
+\end{proposition}
+\begin{proof}
+Les deux moyennes ont $\min(n_k, n_l)$ contributeurs en commun, donc
+\[
+\Cov(\bar e_k, \bar e_l)=\frac{\min(n_k, n_l)}{n_kn_l}\,\rho_{kl}\sigma_k\sigma_l
+=\frac{\rho_{kl}\,\sigma_k\sigma_l}{\max(n_k, n_l)} .
+\]
+Ensuite $\Var(\bar e_l-\bar e_k)=\sigma^2(1/n_l+1/n_k-2/n_k)=\sigma^2(1/n_l-1/n_k)$.
+\end{proof}
+
+En unités de dispersion des contributeurs, le consensus saute ainsi de lui-même de $\vJumpA\,\sigma$ quand le panel
+passe de $16$ à $12$ contributeurs, de $\vJumpB\,\sigma$ de $12$ à $7$ (le panel options de l'exemple fil rouge entre
+deux et trois ans), de $\vJumpC\,\sigma$ de $15$ à $7$ et de $\vJumpD\,\sigma$ de $10$ à $4$. Un saut de cette taille à
+une sortie de contributeurs est du bruit, pas une information ; le modèle de bruit de la \cref{sec-detection} le
+reproduit grâce à \eqref{eq-nested}.
+
+\subsection{Six mécanismes, six signatures}\label{sec-signatures}
+Au-delà du bruit, certains mécanismes produisent de vraies anomalies. Chacun laisse dans l'écart de portage une forme
+caractéristique.
+
+\begin{proposition}[Signatures]\label{prop-signatures}
+Au premier ordre, chaque mécanisme ajoute à l'écart de portage $\delta$ la contribution suivante.
+\begin{enumerate}[label=(\roman*)]
+\item \emph{Décalage du spot.} Si les contributeurs options valorisent avec un spot $S_0(1+\varepsilon)$ alors que le
+contrôleur utilise $S_0$ : $-\varepsilon S_0/(S_0-D_k)\approx-\varepsilon$ à tous les piliers, soit une erreur de
+repo $-\varepsilon/T_k$. Un dividende détaché avant $T_1$ et erroné de $\delta d$ dans le service dividendes produit la
+même forme, $-\delta\tilde d/(S_0-D_k)$.
+\item \emph{Erreur sur une période de dividendes.} Si le niveau Totem de la période $p$ est erroné de $\delta\ell_p$ :
+$-a_{kp}\,\delta\ell_p/(S_0-D_k)$, une marche qui commence au premier pilier qui suit le détachement ; en repo, un saut
+qui décroît comme $1/T$.
+\item \emph{Désaccord sur la date de détachement.} Soit un dividende détaché en $t_i\in\intoo{T_k}{T_{k+1}}$, et une
+fraction $f$ du panel options qui le place avant $T_k$ : $+f\,\tilde d_i/(S_0-D_k)$ au seul pilier $T_k$, un pic. La
+variance des $\ln F_j$ en $T_k$ augmente de $f(1-f)\,\tilde d_i^{\,2}/(S_0-D_k)^2$.
+\item \emph{Profil de détachement périmé.} Si les forwards utilisent les vraies dates $t_i$ mais l'allocation les
+place en $t_i+\Delta$ avec $\Delta>0$ : $+\tilde d_i/(S_0-D_k)$ aux piliers $T_k\in\intco{t_i}{t_i+\Delta}$, et rien
+ailleurs (pour $\Delta<0$, $-\tilde d_i/(S_0-D_k)$ aux piliers $T_k\in\intco{t_i+\Delta}{t_i}$). Pour un payeur
+saisonnier, les piliers touchés reviennent chaque année.
+\item \emph{Forward aberrant.} Si le consensus $\ln F^{\tot}_k$ est décalé de $\mu$ : $-\mu$ au seul pilier $T_k$,
+un pic.
+\item \emph{Biais proportionnel sur les dividendes} (par exemple brut contre net de retenue à la source). Si chaque
+dividende Totem vaut $(1+\tau)$ fois celui des forwards : $-\tau D_k/(S_0-D_k)$, un escalier qui monte à chaque
+détachement. Pour un flux continu de rendement $y$, $D_k\approx S_0\,y\,T_k$ et la contribution vaut environ
+$-\tau\,y\,T_k$ : exactement la forme d'un écart de repo constant de $-\tau y$.
+\end{enumerate}
+Deux autres formes complètent le tableau : une sortie de contributeurs au pilier $T_k$ produit une marche en $T_k$
+(\cref{prop-nested}), et une erreur de marquage du repo FO de $\Delta q$ produit $-\Delta q(T_k)\,T_k$, un écart de
+repo lisse.
+\end{proposition}
+\begin{proof}
+On applique \eqref{eq-delta-exact} à forwards ou dividendes perturbés.
+(i) Le forward de chaque contributeur devient $\bigl(S_0(1+\varepsilon)-D\bigr)e^{(r-q)T}$, donc $\ln F^{\tot}_k$ varie
+de $\ln\bigl(1+\varepsilon S_0/(S_0-D_k)\bigr)$ ; pour le dividende proche, $D^{\tot}_k$ varie de $\delta\tilde d$ à
+tous les piliers.
+(ii) Le \cref{lem-allocation} donne $\delta D^{\tot}_k=a_{kp}\,\delta\ell_p$, nul avant le détachement et à peu près
+constant après.
+(iii) En $T_k$, une fraction $f$ du panel options inclut le dividende, donc $\ln F^{\tot}_k$ baisse de
+$f\tilde d_i/(S_0-D_k)$, alors que l'allocation l'exclut ; avant $T_k$, personne ne l'inclut, et après $T_{k+1}$ tout
+le monde l'inclut. Pour la variance : les contributeurs forment deux groupes, de poids $f$ et $1-f$, dont les $\ln F_j$
+moyens diffèrent de $\tilde d_i/(S_0-D_k)$.
+(iv) $D^{\tot}_k-D_k=\sum_i\tilde d_i\bigl(\one_{\{t_i+\Delta\le T_k\}}-\one_{\{t_i\le T_k\}}\bigr)$, qui vaut
+$-\tilde d_i$ exactement quand $t_i\le T_k<t_i+\Delta$.
+(v) Immédiat. (vi) $\delta D^{\tot}_k=\tau D_k$ ; pour un rendement, $D_k=S_0(1-e^{-yT_k})\approx S_0\,y\,T_k$ et
+$S_0-D_k\approx S_0$.
+\end{proof}
+
+\begin{table}[ht]
+\centering
+\caption{Signatures des mécanismes. La dernière colonne donne la forme type que teste le détecteur de la
+\cref{sec-detection}.}
+\label{tab-signatures}
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{4.2cm}>{\raggedright\arraybackslash}p{4.3cm}
+>{\raggedright\arraybackslash}p{3.6cm}l@{}}
+\toprule
+Mécanisme & Écart de portage $\delta$ & Écart de repo & Forme type\\
+\midrule
+Écart de panel (\ref{prop-gap}) & bruit lisse, incréments aux détachements & bruit à peu près plat & bruit\\
+Sortie de contributeurs (\ref{prop-nested}) & marche à la sortie & saut décroissant en $1/T$ & marche\\
+(i) Décalage du spot & constante & hyperbole $-\varepsilon/T$ & niveau\\
+(ii) Erreur sur une période & marche après le détachement & saut décroissant en $1/T$ & marche\\
+(iii) Désaccord de date & un pilier & pic & pic\\
+(iv) Profil périmé & piliers proches des détachements & zigzag annuel & saison\\
+(v) Forward aberrant & un pilier & pic & pic\\
+(vi) Biais proportionnel & escalier ; $\approx-\tau yT$ pour un flux & marches ; niveau pour un indice & marche\\
+Erreur de marquage FO & $-\Delta q(T)\,T$, lisse & niveau ou pente lisse & aucune\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{filrouge}
+La \cref{fig-gallery} montre l'action de l'exemple fil rouge sous chacun des huit scénarios du banc d'essai, avec le
+même bruit de contributeurs que dans le marché sain. Le spot des contributeurs options est décalé de \vRunSpotEps{} en
+(a) : la courbe Totem plonge en $1/T$ sur le court terme. En (b), le niveau Totem 2027 est décalé de
+\vRunBucketDelta{} : saut à neuf mois, qui s'amortit en $1/T$. En (c), \vRunTimingShare{} du panel options placent avant
+l'échéance de six mois le dividende détaché \vRunTimingDays~jours après : pic à six mois. En (d), le profil d'allocation
+est décalé de \vRunSeasonShift~jours : les dividendes de mai passent avant les échéances de six et dix-huit mois, d'où
+deux pics négatifs. En (e), le consensus $\ln F$ à deux ans est décalé de \vRunFwdShift\,pb. En (f), les contributeurs
+options restants après la sortie de trois ans surestiment de \vRunPanelDelta{} les dividendes suivants : la
+déformation est lisse et reste dans la bande. En (g), c'est le repo FO qui est décalé de \vRunFoShift\,pb, Totem étant
+intact. En (h), toutes les périodes Totem sont biaisées de \vRunGrossBias{} (biais brut/net).
+\end{filrouge}
+
+\begin{figure}[p]
+\centering\includegraphics[width=\linewidth]{figures/\lang/gallery.pdf}
+\caption{Exemple fil rouge sous les huit scénarios : repo FO, repo implicite Totem, bande de $\pm2$ écarts-types du
+bruit de consensus autour du FO, et, en vert, la courbe Totem réparée par le détecteur de la \cref{sec-detection}
+(anomalie retirée). En (f), le détecteur ne signale rien ; en (g), il ne signale pas d'anomalie Totem mais une erreur de
+marquage FO possible. Les diagnostics sont détaillés au \cref{tab-running}.}
+\label{fig-gallery}
+\end{figure}
+
+\subsection{Ce que les données ne peuvent pas dire}\label{sec-nonid}
+\begin{theorem}[Non-identifiabilité de la répartition]\label{thm-nonid}
+On suppose que les prix d'options européennes ne dépendent des vues d'un contributeur qu'à travers ses forwards.
+Pour tout contributeur $j$ du panel options, on remplace $(q_j, D_j)$ par $(q_j+u_j, D'_j)$ avec
+$u_j(T)\,T=\ln\bigl(S_0-D'_j(T)\bigr)-\ln\bigl(S_0-D_j(T)\bigr)$. Alors tous les prix d'options sont inchangés, donc
+toutes les statistiques du panel options (consensus, dispersion, nombre de contributeurs) ; les statistiques du panel
+dividendes le sont aussi. Le repo implicite $q^{\tot}$ est donc inchangé, alors que le repo moyen du panel options
+$\qbar$ varie de la moyenne des $u_j$. Par conséquent, l'écart de panel $q^{\tot}-\qbar$ n'est pas une fonction des
+données observables.
+\end{theorem}
+\begin{proof}
+La transformation laisse $\ln F_j=(r-q_j)T+\ln(S_0-D_j)$ inchangé pour tout $j$ et tout $T$ : les prix d'options de
+chaque contributeur, et toute statistique qui en découle, sont inchangés. Le panel dividendes n'est pas touché.
+$q^{\tot}$ n'est calculé qu'à partir de ces statistiques ; il ne bouge donc pas, alors que $\qbar$ se déplace de la
+moyenne des $u_j$, qui peut prendre n'importe quelle valeur.
+\end{proof}
+
+\begin{corollary}\label{cor-nonid}
+Aucun estimateur construit à partir des seules données de consensus Totem (lissage de courbe, regroupement, réseau
+de neurones) ne peut retirer l'écart de panel. On peut en revanche en calculer la taille (\cref{sec-detection}),
+reconnaître les mécanismes structurés à leur signature (\cref{prop-signatures}), et se passer de la répartition
+entre repo et dividendes là où l'exposition ne l'exige pas (\cref{sec-controle}).
+\end{corollary}
+
+\begin{remark}[Ce qui lève l'indétermination]
+Des informations extérieures au consensus fixent directement l'un des deux côtés : contrats à terme cotés sur
+dividendes, contrats à terme de rendement total, qui cotent un spread de financement, commissions de prêt-emprunt de
+titres pour le court terme. Des contributeurs communs aux deux services réduisent l'écart (\cref{cor-gap}), et les
+options américaines portent un peu d'information sur la répartition par l'exercice anticipé.
+\end{remark}
+
+\begin{retenir}
+\begin{itemize}[leftmargin=12pt]
+\item Repo implicite $=$ repo du panel options $+$ écart de panel. L'écart de panel est du bruit normal, de taille
+calculable : quelques points de base à un an, une à plusieurs dizaines à cinq ans.
+\item Les vraies anomalies ont des formes reconnaissables en portage : niveau (spot), marche (période de dividendes,
+sortie de contributeurs), pic (date de détachement, forward aberrant), saison (profil périmé).
+\item La répartition entre repo et dividendes du panel options n'est pas identifiable à partir de Totem : aucune
+méthode statistique, si sophistiquée soit-elle, ne la retrouvera.
+\end{itemize}
+\end{retenir}

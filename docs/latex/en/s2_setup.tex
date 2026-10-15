@@ -1,0 +1,166 @@
+\section{Setup and notation}\label{sec-setup}
+
+\begin{objectif}
+Fix the notation and establish the three tools the rest of the note needs: the forward formula, the carry
+difference, and the passage from Totem data to the implied repo.
+\end{objectif}
+
+\subsection{Conventions}
+Time is measured in years from the valuation date, and rates are continuously compounded zero rates. Scalars and
+vectors are written in lower case, matrices in upper case; $\tr{A}$ is the transpose of $A$, $\M_{N,m}(\R)$ the space
+of matrices with $N$ rows and $m$ columns, $\sprod{x}{y}=\tr{x}\,y$ the inner product of $\R^N$ and $\norm{x}$ the
+associated norm. The superscript $\tot$ marks a quantity from Totem and the superscript $\fo$ a front-office quantity.
+A basis point (bp) is $10^{-4}$; a carry difference is expressed in basis points of spot. The notation is summarised
+in \cref{app-notation}.
+
+\subsection{Forward and discrete dividends}
+Let $S_0$ be the spot, $r(T)$ the zero rate of maturity $T$, and $q(T)$ the zero \emph{repo} rate, that is, the cost
+of borrowing the stock: holding the stock financed by a repo earns $r-q$ per unit of time. Dividends are discrete: an
+amount $d_i$ goes ex at time $t_i$. Let $\tilde d_i=d_i\,e^{-(r(t_i)-q(t_i))\,t_i}$ be the dividend discounted at the
+carry rate.
+
+\begin{definition}[Forward]\label{def-forward}
+The forward of maturity $T$ is
+\begin{equation}\label{eq-forward}
+F(T)=\bigl(S_0-D(T)\bigr)\,e^{(r(T)-q(T))\,T}, \qquad D(T)=\sum_{t_i\le T}\tilde d_i .
+\end{equation}
+$D(T)$ is the sum of the dividends going ex before $T$, discounted at the carry rate.
+\end{definition}
+
+This is the usual replication argument: buy the stock financed at the rate $r-q$ and carry the dividends received
+forward. The repo also enters $D$, weakly, through the discounting of the dividends; the bootstrap of
+\cref{sec-bootstrap} handles this coupling exactly.
+
+\begin{lemma}[Log of the forward]\label{lem-logf}
+$\ln F(T)=\bigl(r(T)-q(T)\bigr)\,T+\ln\bigl(S_0-D(T)\bigr)$. Hence, to first order, perturbations of the forward, the
+dividends and the repo satisfy
+\begin{equation}\label{eq-additivity}
+\delta\bigl(q(T)\,T\bigr)=\delta\bigl(r(T)\,T\bigr)-\delta\ln F(T)-\frac{\delta D(T)}{S_0-D(T)} .
+\end{equation}
+\end{lemma}
+\begin{proof}
+Take the log of \eqref{eq-forward} and differentiate, with $\delta\ln(S_0-D)=-\delta D/(S_0-D)+O(\delta D^2)$.
+\end{proof}
+
+\subsection{The carry difference}
+The Totem maturities, or \emph{pillars}, are $T_1<\dots<T_N$ (here $N=11$, from one month to five years). For any
+quantity $x$, we write $x_k=x(T_k)$.
+
+\begin{definition}[Carry difference]\label{def-delta}
+The \emph{carry difference} at pillar $T_k$ is
+\begin{equation}\label{eq-delta}
+\delta_k=\bigl(q^{\tot}_k-q^{\fo}_k\bigr)\,T_k, \qquad k\in\ient1N,
+\end{equation}
+where $q^{\tot}$ is the Totem-implied repo (\cref{def-implied}) and $q^{\fo}$ the FO repo. We write
+$\delta=(\delta_1, \dots, \delta_N)\in\R^N$.
+\end{definition}
+
+\begin{proposition}[The repo, a difference of forward and dividends]\label{prop-delta}
+The controller uses the same rate curve on both sides. Then, up to the coupling through the discounting of the
+dividends,
+\begin{equation}\label{eq-delta-exact}
+\delta_k=-\ln\frac{F^{\tot}_k}{F^{\fo}_k}+\ln\frac{S_0-D^{\tot}_k}{S_0-D^{\fo}_k}
+\;\approx\;-\frac{F^{\tot}_k-F^{\fo}_k}{F_k}-\frac{D^{\tot}_k-D^{\fo}_k}{S_0-D_k} .
+\end{equation}
+\end{proposition}
+\begin{proof}
+By construction, the Totem-implied repo reprices the Totem forward with the Totem dividends, and the FO repo the FO
+forward with the FO dividends. Apply \cref{lem-logf} on both sides and subtract: the rate terms cancel. The
+approximation comes from $\ln(1+x)=x+O(x^2)$.
+\end{proof}
+
+In carry terms, the repo difference is therefore the relative forward difference minus the relative dividend
+difference. This is already, in elementary form, the controller's intuition: repo control $=$ forward control $-$
+dividend control. \Cref{sec-control} turns it into an identity on the control lines.
+
+\begin{retenir}
+Why carry rather than repo: in $\delta$, the effects of the different mechanisms \emph{add up}, and nothing is
+magnified. A constant error $\varepsilon$ on $\ln F$ is a constant in carry and a hyperbola $\varepsilon/T$ in repo.
+Every test in this note therefore works on $\delta$.
+\end{retenir}
+
+\subsection{The Totem data}
+\begin{assumption}[Consistent contributors]\label{hyp-coherent}
+Contributor $j$ has a repo view $q_j(\cdot)$ and a dividend view $D_j(\cdot)$, and quotes option prices consistent with
+the forward $F_j(T)=\bigl(S_0-D_j(T)\bigr)\,e^{(r(T)-q_j(T))T}$, the spot and the rate curve being common.
+\end{assumption}
+
+\begin{assumption}[Panels]\label{hyp-panels}
+At pillar $T_k$, the option panel $\Popt_k$ has $n^{\opt}_k$ contributors; for period $p$, the dividend panel $\Pdiv_p$
+has $n^{\dv}_p$. Panels are nested in maturity: a contributor who quotes a long maturity also quotes the shorter ones.
+View errors are independent from one contributor to another. The two services have $n^{\com}$ contributors in common
+($n^{\com}=0$ for disjoint panels).
+\end{assumption}
+
+\begin{assumption}[Consensus]\label{hyp-consensus}
+The consensus is the arithmetic mean over the panel (after an optional outlier filter). For each maturity and each
+period, Totem publishes the consensus, the dispersion across contributors and their number.
+\end{assumption}
+
+\subsection{From the consensus to the implied repo}\label{sec-bootstrap}
+The passage has three steps.
+
+\paragraph{Forwards from put--call parity.}
+\begin{lemma}[Parity and consensus forward]\label{lem-parity}
+If every contributor quotes European calls and puts with the same discount factor $B(0, T)$, then
+$C_j(K)-P_j(K)=B(0, T)\,(F_j-K)$ for every strike $K$. If the consensus averages the same contributors at every
+strike, $\bar C(K)-\bar P(K)=B(0, T)\,(\bar F-K)$, where $\bar F$ is the average of the contributors' forwards. The
+strike where $\bar C=\bar P$ is therefore $\bar F$, and it does not depend on $B(0, T)$.
+\end{lemma}
+\begin{proof}
+The first equality is put--call parity; the second follows by averaging the first, which is affine; the third by
+setting the second to zero.
+\end{proof}
+In practice, the line $K\mapsto\bar C(K)-\bar P(K)$ is fitted by weighted least squares; its root is the Totem forward
+$F^{\tot}_k$ and its slope gives an implied discount factor, used as a diagnostic. Two situations break the lemma: an
+outlier filter applied separately per strike and option type (the averaged contributors are then no longer the same),
+and American exercise. A worked example and the case of discount factors that differ across contributors are in
+\cref{app-parity}.
+
+\paragraph{Dividend allocation.} The Totem levels $\ell_p$ are sums of the dividends going ex in the period
+$I_p=\intoc{e_{p-1}}{e_p}$, $p\in\ient1m$ (here $m=6$: the rest of 2026, then 2027 to 2031). The controller spreads them
+over the ex-dates of the FO forecast: a profile gives a weight $\pi_i\ge0$ to each date, with
+$\sum_{t_i\in I_p}\pi_i=1$, and the allocated dividend is $d_i=\ell_p\,\pi_i$.
+
+\begin{lemma}[Allocation]\label{lem-allocation}
+For a fixed repo,
+\[
+D_k=\sum_{p=1}^m a_{kp}\,\ell_p, \qquad a_{kp}=\sum_{t_i\in I_p,\ t_i\le T_k}\pi_i\,e^{-(r(t_i)-q(t_i))\,t_i} .
+\]
+We call $A=(a_{kp})\in\M_{N,m}(\R)$ the allocation matrix.
+\end{lemma}
+\begin{proof}
+Replace $d_i$ by $\ell_p\pi_i$ in \eqref{eq-forward} and group the terms by period.
+\end{proof}
+The coefficient $a_{kp}$ is the discounted share of period $p$ that goes ex before $T_k$. It is zero if the period
+starts after $T_k$, and equal to the discount factor of the period (close to $1$) if the whole period goes ex before
+$T_k$; in between, for a period that straddles a pillar, it depends on the profile: this is exactly where the profile
+matters.
+
+\paragraph{Bootstrap.} We look for a repo curve with a constant forward repo between pillars, that is, such that
+$t\mapsto q(t)\,t$ is affine on each $[T_{k-1}, T_k]$, which reprices the forwards. It is built pillar by pillar:
+knowing $q_1, \dots, q_{k-1}$, the unknown is $x=q_kT_k$, and the model forward at $T_k$ is a function
+$\mathcal F_k(x)$, written out in \cref{app-bootstrap}.
+
+\begin{proposition}[The bootstrap is well posed]\label{prop-bootstrap}
+Assume $S_0-D_{k-1}>0$. The function $\mathcal F_k$ satisfies $\mathcal F_k'\le-\mathcal F_k$; it is therefore
+strictly decreasing where it is positive. For every $F_k>0$, the equation $\mathcal F_k(x)=F_k$ has a unique solution,
+and Newton's method applied to $x\mapsto\ln\mathcal F_k(x)-\ln F_k$, safeguarded by bisection, converges to it.
+\end{proposition}
+The proof, a worked example and the algorithm are in \cref{app-bootstrap}.
+
+\begin{definition}[Totem-implied repo]\label{def-implied}
+The \emph{Totem-implied repo} $q^{\tot}$ is the bootstrap solution for the forwards $F^{\tot}_k$ and the Totem
+dividend levels $\ell^{\tot}_p$ allocated on the FO profile. We also write $\hat q$ for the solution with the Totem
+forwards and the \emph{FO} dividends: it depends on Totem only through its forwards.
+\end{definition}
+
+\begin{retenir}
+\begin{itemize}[leftmargin=12pt]
+\item $\delta_k=(q^{\tot}_k-q^{\fo}_k)\,T_k$: the repo difference expressed in carry, in basis points of spot.
+\item $\delta_k\approx-$ (relative forward difference) $-$ (relative dividend difference): the implied repo is a
+residual.
+\item The passage from Totem to the implied repo (parity, allocation, bootstrap) is exact and well posed; the
+difficulties come from the data, not from the algorithm.
+\end{itemize}
+\end{retenir}

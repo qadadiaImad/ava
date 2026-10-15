@@ -1,0 +1,84 @@
+\section{Recommandations et mise en œuvre}\label{sec-reco}
+
+\begin{objectif}
+Traduire les résultats en règles de contrôle, préciser les données nécessaires et la procédure mensuelle.
+\end{objectif}
+
+\subsection{Ce que nous recommandons}
+\begin{enumerate}
+\item \textbf{Contrôler le forward, pas la répartition.} Pour chaque portefeuille, calculer la ligne forward
+(forwards Totem, dividendes FO) et la ligne non-forward $\sprod{\eta}{\Delta\ell}$. Pour les portefeuilles linéaires en
+forward, la ligne forward \emph{est} le contrôle, et elle ne dépend pas des contributeurs dividendes
+(\cref{thm-control,thm-exact}). Les dividendes Totem ne sont nécessaires que là où $\eta\ne0$ : swaps et futures de
+dividendes, prêt-emprunt de titres, financement des swaps de rendement total, exercice américain, exotiques.
+\item \textbf{Ne pas additionner sans compensation} des lignes dividendes et repo importantes et de signes opposés :
+c'est un artefact de répartition. En valorisation prudente, prendre le forward comme paramètre là où $\eta\approx0$.
+\item \textbf{Juger la courbe en portage, avec une bande de bruit.} Remplacer les contrôles visuels et les seuils en
+points de base de repo par l'écart de portage $\delta$ et la covariance $\Gamma$ calculée à partir des dispersions et
+des nombres de contributeurs Totem (\cref{prop-noise}).
+\item \textbf{Déployer le détecteur structurel} avec $\alpha=\pct{2}$, et publier pour chaque alerte l'explication en
+unités naturelles, la courbe réparée et, à part, le test d'erreur de marquage FO.
+\item \textbf{Garder les B-splines, les mélanges et les réseaux de neurones en aval} : sur les sorties du détecteur et
+ses résidus, et pour regrouper la calibration par région et catégorie.
+\item \textbf{Calibrer et valider sur l'historique réel} : $\kappa$ et l'échelle de niveau par région et catégorie,
+chaque trimestre, puis une validation sur douze à vingt-quatre mois d'instantanés avec des incidents étiquetés.
+\end{enumerate}
+
+\subsection{Données nécessaires}
+\begin{center}\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{2.6cm}>{\raggedright\arraybackslash}p{9.3cm}
+>{\raggedright\arraybackslash}p{2.6cm}@{}}
+\toprule
+Donnée & Champs & Taille\\
+\midrule
+Options Totem & maturités ; strikes ; prix de consensus des calls et des puts ; nombre de contributeurs ; dispersion des
+forwards des contributeurs (ou une estimation) ; spot de référence & $N$ maturités\\
+Dividendes Totem & bornes des périodes ; niveau de consensus ; dispersion ; nombre de contributeurs & $m$ périodes\\
+Marché FO & spot à l'heure de l'instantané Totem ; courbe des taux ; repo aux maturités Totem ; prévision de
+dividendes (dates et montants) & $N$ ; liste\\
+Risque FO & sensibilités repo par pilier, projetées sur les maturités Totem ; sensibilités dividendes par période
+Totem & $N+m$ par portefeuille\\
+Historique & douze à vingt-quatre instantanés mensuels et incidents connus & calibration, validation\\
+\bottomrule
+\end{tabular}
+\end{center}
+Si Totem ne publie pas la dispersion des forwards des contributeurs, on peut l'estimer à partir de la dispersion des
+calls et des puts très dans la monnaie, ou la calibrer sur l'historique : le détecteur a besoin de la bonne forme par
+maturité, et $\kappa$ corrige un biais commun.
+
+\subsection{Procédure mensuelle}
+\begin{enumerate}
+\item Charger les instantanés Totem et FO à la même heure de valorisation ; vérifier le spot de référence.
+\item Calculer les forwards par la parité ; examiner le facteur d'actualisation implicite, les résidus de parité et
+les rapports de dispersion.
+\item Allouer les niveaux de dividendes Totem sur le profil de détachement FO ; calculer le repo implicite avec les
+dividendes Totem ($q^{\tot}$) et avec les dividendes FO ($\hat q$).
+\item Construire $\Gamma$ et lancer le détecteur avec le $\kappa$ et l'échelle de niveau de la région et de la catégorie.
+\item Calculer les lignes de contrôle par portefeuille (forward, dividendes, repo, non-forward) et la matérialité de la
+répartition.
+\item Examiner les alertes avec leurs explications, ainsi que les erreurs de marquage FO possibles ; utiliser la courbe
+réparée quand une anomalie Totem est confirmée.
+\item Consigner la décision prise pour chaque alerte : ces étiquettes servent à la calibration suivante et à la
+validation.
+\end{enumerate}
+
+\subsection{Gouvernance et prochaines étapes}
+$\kappa$ et l'échelle de niveau sont recalibrés chaque trimestre par région et catégorie sur l'historique sain, avec un
+budget d'alertes de \vFPR{} des sous-jacents par mois. On suit le taux d'alerte réalisé et la part des explications
+acceptées par les contrôleurs. Là où elles existent, des références de marché complètent le détecteur : contrats à
+terme cotés sur indices et sur dividendes, contrats à terme de rendement total, commissions de prêt-emprunt de titres
+pour le court terme. L'étape suivante est de faire tourner la chaîne sur douze à vingt-quatre mois d'instantanés Totem
+et FO réels, de calibrer les réglages par région et catégorie, et de mesurer la qualité des explications sur des
+incidents étiquetés.
+
+\section*{Conclusion}
+\addcontentsline{toc}{section}{Conclusion}
+Les courbes de repo implicite sont irrégulières parce qu'elles sont le résidu de deux moyennes de consensus calculées
+sur des panels différents, et une partie de ce résidu ne peut être retirée par aucune méthode qui ne voit que le
+consensus (\cref{thm-nonid}). Deux conséquences pratiques en découlent. Pour le contrôle, un portefeuille linéaire en
+forward n'a pas besoin de la répartition entre repo et dividendes : le contrôle repo est le contrôle forward moins le
+contrôle dividendes, exactement en réévaluation complète, et l'exposition non-forward $\eta$ dit, portefeuille par
+portefeuille, quand la répartition compte. Pour la détection, les mécanismes qui produisent les vraies anomalies ont
+des formes connues dans l'écart de portage ; des filtres adaptés, avec un bruit calculé à partir des propres
+statistiques de Totem, les détectent à un taux de fausses alertes fixé, les expliquent en unités naturelles et les
+distinguent des erreurs de marquage FO.

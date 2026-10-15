@@ -2,10 +2,12 @@
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
 \usepackage[french]{babel}
-\frenchsetup{SmallCapsFigTabCaptions=false}
+\frenchsetup{SmallCapsFigTabCaptions=false,ItemLabels=\textendash}
 \addto\captionsfrench{\renewcommand{\tablename}{Tableau}}
 \usepackage[locale=FR]{siunitx}
-\newcommand{\pct}[1]{\num{#1}\,\%}
+\usepackage{icomma}
+\newcommand{\pct}[2][]{\num[#1]{#2}\,\%}
+% ------------------------------------------------ names
 \newcommand{\NTheorem}{Théorème}
 \newcommand{\NProposition}{Proposition}
 \newcommand{\NLemma}{Lemme}
@@ -14,14 +16,27 @@
 \newcommand{\NAssumption}{Hypothèse}
 \newcommand{\NExample}{Exemple}
 \newcommand{\NRemark}{Remarque}
+\newcommand{\NObjective}{Objectif de la section.}
 \newcommand{\NInsight}{À retenir}
-\newcommand{\NCaveat}{Mise en garde}
-\newcommand{\shorttitle}{Repo implicite Totem : théorie, contrôle et détection}
-\newcommand{\draftname}{Document de travail}
+\newcommand{\NRunning}{Exemple fil rouge}
+\newcommand{\NAnswer}{Réponse à la question du contrôleur}
+\newcommand{\NCaveat}{Limites}
+\newcommand{\NSummary}{En bref}
+\newcommand{\shorttitle}{Repo implicite Totem}
 \newcommand{\lang}{fr}
+% ------------------------------------------------ French mathematical conventions
+\newcommand{\tr}[1]{{}^{t}\!#1}
+\newcommand{\intoc}[2]{\mathopen{]}#1, #2\mathclose{]}}
+\newcommand{\intco}[2]{\mathopen{[}#1, #2\mathclose{[}}
+\newcommand{\intoo}[2]{\mathopen{]}#1, #2\mathclose{[}}
+\newcommand{\ient}[2]{\llbracket #1, #2\rrbracket}
 \input{preamble}
-\usepackage[colorlinks=true,linkcolor=accent,citecolor=accent,urlcolor=accent]{hyperref}
-\usepackage[nameinlink,capitalise,french]{cleveref}
+\renewcommand{\le}{\leqslant}
+\renewcommand{\leq}{\leqslant}
+\renewcommand{\ge}{\geqslant}
+\renewcommand{\geq}{\geqslant}
+\usepackage[colorlinks=true,linkcolor=accentdark,citecolor=accentdark,urlcolor=accentdark]{hyperref}
+\usepackage[nameinlink,french]{cleveref}
 \input{theorems}
 \crefname{theorem}{théorème}{théorèmes}
 \Crefname{theorem}{Théorème}{Théorèmes}
@@ -43,14 +58,19 @@
 \Crefname{algorithm}{Algorithme}{Algorithmes}
 \crefname{section}{section}{sections}
 \Crefname{section}{Section}{Sections}
+\crefname{subsection}{section}{sections}
+\Crefname{subsection}{Section}{Sections}
 \crefname{appendix}{annexe}{annexes}
 \Crefname{appendix}{Annexe}{Annexes}
+\crefname{subappendix}{annexe}{annexes}
+\Crefname{subappendix}{Annexe}{Annexes}
 \crefname{figure}{figure}{figures}
 \Crefname{figure}{Figure}{Figures}
 \crefname{table}{tableau}{tableaux}
 \Crefname{table}{Tableau}{Tableaux}
 \crefname{equation}{équation}{équations}
 \Crefname{equation}{Équation}{Équations}
+\creflabelformat{equation}{#2(#1)#3}
 \floatname{algorithm}{Algorithme}
 \algrenewcommand\algorithmicrequire{\textbf{Entrées :}}
 \algrenewcommand\algorithmicensure{\textbf{Sorties :}}
@@ -64,45 +84,16 @@
 \algrenewcommand\algorithmicreturn{\textbf{renvoyer}}
 \input{generated/fr/values}
 
-\title{\textbf{Repo implicite Totem}\\[4pt]\large Théorie, contrôle indépendant des dividendes et détection des courbes
-aberrantes\\[2pt]\normalsize Note technique avec démonstrations, exemples détaillés et banc d'essai synthétique}
-\author{Contrôle indépendant des prix -- Dérivés actions}
-\date{14 octobre 2026 \quad\textbullet\quad Document de travail}
-
 \begin{document}
-\maketitle
-\thispagestyle{empty}
-
-\begin{abstract}
-\noindent Les paramètres de repo utilisés pour le contrôle indépendant des prix sont implicités de Totem : les
-forwards à partir des prix de consensus des calls et des puts, les dividendes à partir du service dividendes de Totem,
-distinct. Comme ces deux services sont alimentés par des panels de contributeurs différents dont la taille varie avec
-la maturité, la courbe de repo implicite hérite du bruit et des artefacts des deux, et présente parfois des formes que
-le marché ne justifie pas. Cette note donne (i)~une décomposition exacte du repo implicite en repo du panel options
-plus un \emph{écart de panel}, avec le bruit, les sauts et les biais que chaque mécanisme produit ; (ii)~un théorème de
-non-identifiabilité qui établit qu'aucune méthode fondée sur les seules données de consensus ne peut supprimer cet
-écart ; (iii)~une identité de contrôle qui démontre que la somme des lignes de contrôle dividende et repo ne dépend
-pas du panel dividendes pour une exposition linéaire en forward, accompagnée d'une mesure de matérialité calculée à
-partir des seules sensibilités ; (iv)~un détecteur structurel fondé sur des filtres adaptés et un test du rapport de
-vraisemblance généralisé, calibré sur un historique sain, qui nomme le mécanisme à l'origine de chaque alerte et
-répare la courbe ; (v)~un banc d'essai sur un marché Totem synthétique construit contributeur par contributeur,
-qui le compare à des contrôles naïfs et à un regroupement par mélange gaussien de coefficients B-spline. Chaque
-résultat est démontré, illustré par un exemple chiffré et vérifié dans le package Python qui accompagne la note.
-\end{abstract}
-
-\tableofcontents
-\newpage
-
-\input{fr/s1_introduction}
-\input{fr/s2_model}
-\input{fr/s3_anatomy}
-\input{fr/s4_control}
-\input{fr/s5_noise}
-\input{fr/s6_detection}
-\input{fr/s7_benchmark}
-\input{fr/s8_alternatives}
-\input{fr/s9_operations}
+\input{fr/s0_bref}
+\input{fr/s1_probleme}
+\input{fr/s2_cadre}
+\input{fr/s3_diagnostic}
+\input{fr/s4_controle}
+\input{fr/s5_detection}
+\input{fr/s6_banc}
+\input{fr/s7_recommandations}
+\clearpage
 \appendix
-\input{fr/sA_appendix}
-\input{fr/references}
+\input{fr/sA_annexes}
 \end{document}

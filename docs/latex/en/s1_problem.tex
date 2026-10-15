@@ -1,0 +1,131 @@
+\section{The problem and the goal}\label{sec-problem}
+
+\begin{objectif}
+Describe the chain from the Totem contributions to the control lines, show why an implied repo curve often looks bad
+without being bad, and state what the note must deliver.
+\end{objectif}
+
+\subsection{The control chain}
+For each underlying and each control date, the controller has three sources (\cref{fig-chain}).
+\begin{itemize}
+\item \textbf{Totem options}: for each maturity $T_k$, consensus call and put prices on a strike grid, the number of
+contributors $n^{\opt}_k$ and the dispersion of their quotes.
+\item \textbf{Totem dividends}: for each period $p$ (usually a calendar year), the consensus level $\ell^{\tot}_p$,
+that is, the sum of the dividends going ex in the period, the number of contributors $n^{\dv}_p$ and their dispersion.
+\item \textbf{The front office}: the spot, the rate curve, the repo curve $q^{\fo}$, the dividend forecast (ex-dates
+and amounts) and the sensitivities of each book to the repo and to the dividends.
+\end{itemize}
+Put--call parity gives the Totem forwards $F^{\tot}_k$. The dividend levels are spread over the FO ex-dates. A
+bootstrap then gives the repo curve $q^{\tot}$ which, with these dividends, reprices the Totem forwards exactly. This
+curve has two uses: computing the control lines, that is, the Totem minus FO differences times the sensitivities
+(\cref{sec-control}), and checking the quality of the curve itself (\cref{sec-detection}).
+
+\begin{figure}[ht]
+\centering
+\begin{tikzpicture}[
+  font=\small, >={Stealth[length=2mm]},
+  box/.style={rounded corners=2pt, align=center, inner sep=4pt, minimum height=1.2cm},
+  src/.style={box, draw=accent, fill=accentwash, minimum width=3.3cm},
+  fo/.style={box, draw=muted, fill=greywash, minimum width=3.3cm},
+  mid/.style={box, draw=rule, fill=white, minimum width=2.2cm},
+  key/.style={box, draw=accentdark, line width=0.9pt, fill=white, minimum width=2.2cm},
+  use/.style={box, draw=green, fill=greenwash, minimum width=3.5cm},
+  lab/.style={font=\footnotesize\itshape, text=ink2, align=center}]
+\node[src] (opt) at (0,2.4) {\textbf{Totem options}\\ calls and puts, $n^{\opt}_k$};
+\node[src] (div) at (0,0.8) {\textbf{Totem dividends}\\ levels $\ell^{\tot}_p$, $n^{\dv}_p$};
+\node[fo] (fo) at (0,-1.0) {\textbf{Front office}\\ $q^{\fo}$, dividends,\\ sensitivities $s^q$, $s^\ell$};
+\node[mid] (F) at (4.6,2.4) {forwards\\ $F^{\tot}_k$};
+\node[mid] (D) at (4.6,0.8) {dividends\\ $D^{\tot}_k$};
+\node[key] (Q) at (7.65,1.6) {\textbf{implied repo}\\ $q^{\tot}_k$};
+\node[use] (L) at (11.25,2.4) {\textbf{Control lines}\\ differences $\times$ sensitivities\\ \cref{sec-control}};
+\node[use] (Z) at (11.25,0.6) {\textbf{Detection}\\ on the carry difference $\delta_k$\\ \cref{sec-detection}};
+\draw[->] (opt) -- node[lab, above] {parity} (F);
+\draw[->] (div) -- node[lab, above] {allocation} (D);
+\draw[->] (F.east) -- (Q);
+\draw[->] (D.east) -- (Q);
+\node[lab, anchor=south] at ($(Q.north)+(0,0.05)$) {bootstrap};
+\draw[->] (Q) -- (L);
+\draw[->] (Q) -- (Z);
+\draw[->, dashed, draw=muted] ($(fo.north east)+(0,-0.15)$) -- (D.south);
+\node[lab, anchor=north west] at ($(D.south)+(0.1,-0.12)$) {ex-dates};
+\draw[draw=muted] (fo.east) -- (13.45,-1.0) -- (13.45,2.4);
+\draw[->, draw=muted] (13.45,2.4) -- (L.east);
+\draw[->, draw=muted] (13.45,0.6) -- (Z.east);
+\node[lab, anchor=north] at (7.65,-1.05) {$q^{\fo}$, FO dividends, sensitivities};
+\end{tikzpicture}
+\caption{The control chain. The two Totem services have different contributors, and their number changes with
+maturity; the implied repo curve $q^{\tot}$ inherits the noise of both.}
+\label{fig-chain}
+\end{figure}
+
+\subsection{Why the curve looks bad}
+Two reasons, neither of them an error, are enough to make a clean curve look irregular.
+
+\paragraph{Two panels, two averages.} The Totem forward is the average of the option panel's forwards, and each
+contributor's forward contains its own view of the dividends. The controller takes out the dividends of another panel,
+the dividend service's. If the two panels do not share the same average view of the dividends, the difference ends
+up in the implied repo. This is not a Totem error: it is the mechanical consequence of two averages taken over
+different contributors. Its size depends on the contributor counts, which fall with maturity, and on the dispersion of
+the dividend views, which grows with it (\cref{sec-gap}).
+
+\paragraph{The $1/T$ magnifier.} The repo is a rate: an error $\varepsilon$ on the log of the forward becomes an error
+$\varepsilon/T$ on the repo. An error of \pct{0.1} on the forward is worth \num{120}\,bp of repo at one month and
+\num{2}\,bp at five years. The short end therefore always looks noisy, while a large error at the long end goes
+unnoticed.
+
+A curve that looks irregular is therefore not necessarily bad, and a curve that looks smooth is not necessarily good.
+The rest of the note works on the \emph{carry difference} $\delta_k=(q^{\tot}_k-q^{\fo}_k)\,T_k$, where errors add up
+without being magnified, and compares it with a noise band computed from the statistics that Totem publishes.
+
+\subsection{The running example}\label{sec-running}
+\begin{filrouge}
+A synthetic European stock (\cref{sec-benchmark}): spot $S_0=100$, an annual dividend of about \vRunDiv{} going ex in
+early May (the first on \vRunExDate), an FO repo going from \vRunQfoShort\,bp at the short end to \vRunQfoLong\,bp at
+five years. Totem has \vRunNoptShort{} option contributors on the short maturities and \vRunNoptLong{} at five years;
+the dividend service has \vRunNdivShort{} on 2027 and \vRunNdivLong{} on 2031. The eleven Totem maturities run from
+one month to five years. \Cref{fig-clean} shows the clean market; the same name is taken up again, with the same
+contributor noise, under eight anomalies in \cref{sec-signatures} (\cref{fig-gallery}) and run through the detector in
+\cref{sec-back}.
+\end{filrouge}
+
+\begin{figure}[ht]
+\centering\includegraphics[width=\linewidth]{figures/\lang/clean.pdf}
+\caption{Running example, clean market. (a) FO repo and Totem-implied repo, with the band of $\pm2$ standard deviations
+of consensus noise around the FO repo. (b) The same difference seen in carry: each point is
+$\delta_k=(q^{\tot}_k-q^{\fo}_k)\,T_k$, in basis points of spot.}
+\label{fig-clean}
+\end{figure}
+
+In repo space, the Totem curve looks badly shaped: it loses \vRunDrop\,bp between six and nine months and ends
+\vRunGapLong\,bp below the FO at five years. In carry space, every point stays inside the band. The drop at nine months
+corresponds to a gap of \vRunDivGap{} on the May 2027 dividend between the option panel's view and the dividend panel's,
+that is, \vRunDivGapPct{} of the dividend and \vRunZNine{} standard deviations; at five years, the carry difference is
+\vRunDeltaFive\,bp of spot for a standard deviation of \vRunSdFive\,bp. The detector of \cref{sec-detection} flags
+nothing. This curve is clean: it is what an implied repo from two different panels normally looks like.
+
+\subsection{What the note must deliver}
+The three goals of the first page translate into four deliverables.
+\begin{enumerate}
+\item \textbf{A diagnosis} (G1, \cref{sec-diagnostic}): a decomposition of the implied repo that separates the
+expected noise, whose size can be computed, from the mechanisms that cause real anomalies, each with a recognisable
+shape.
+\item \textbf{A control rule} (G2, \cref{sec-control}): a decomposition of the control lines that does not depend on
+the dividend contributors where possible, and a measure, computed from the sensitivities, of what it still leaves
+depending on them.
+\item \textbf{A detector} (G3, \cref{sec-detection}) with a known false alarm rate, which names the mechanism at work,
+gives its size in natural units (spot off by so much, May 2027 dividend too low by so much), repairs the curve, and
+tells a Totem anomaly from an FO mismark.
+\item \textbf{A comparison} (\cref{sec-benchmark}) with the starting ideas: B-spline coefficients by region and
+category clustered by a Gaussian mixture, small neural networks specialised by anomaly type.
+\end{enumerate}
+
+\begin{retenir}
+\begin{itemize}[leftmargin=12pt]
+\item The implied repo curve is a residual: one panel's forwards minus another panel's dividends. It inherits the noise
+of both.
+\item The eye misleads: the repo magnifies short-end errors by $1/T$ and flattens long-end ones. Judge the curve on the
+carry difference $\delta_k$, against a noise band.
+\item In the running example, a curve that loses \vRunDrop\,bp in three months and ends \vRunGapLong\,bp below the FO
+is perfectly clean.
+\end{itemize}
+\end{retenir}

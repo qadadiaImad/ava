@@ -1,0 +1,85 @@
+% Title, one-page summary, reading guide and table of contents.
+\thispagestyle{plain}
+\begin{center}
+{\color{accentdark}\rule{\linewidth}{0.8pt}}\\[10pt]
+{\LARGE\bfseries Repo implicite Totem}\\[6pt]
+{\large Contrôler le repo du front office et détecter les courbes aberrantes}\\[8pt]
+{\normalsize\color{ink2} Note méthodologique \quad\textbullet\quad Contrôle indépendant des prix, dérivés
+actions}\\[2pt]
+{\normalsize\color{ink2} Octobre 2026 \quad\textbullet\quad Document de travail}\\[4pt]
+{\color{accentdark}\rule{\linewidth}{0.8pt}}
+\end{center}
+
+\begin{bref}
+\textbf{Le problème.} Le contrôle indépendant des prix déduit de Totem une courbe de repo implicite : les forwards
+viennent des prix de consensus des calls et des puts, les dividendes d'un service Totem distinct. Les deux services
+n'ont pas les mêmes contributeurs, et leur nombre varie avec la maturité ; dans notre exemple, \vRunNoptShort{}
+contributeurs options et \vRunNdivShort{} contributeurs dividendes à court terme, \vRunNoptLong{} et \vRunNdivLong{} à
+cinq ans. La courbe de repo implicite hérite du bruit des deux panels : elle paraît parfois irrégulière, ou saute
+d'une maturité à l'autre sans raison de marché. C'est pourtant elle qui sert, par l'intermédiaire des
+sensibilités, à contrôler les positions repo du front office (FO).
+
+\medskip
+\textbf{Les trois objectifs de la note.}
+\begin{description}[leftmargin=1.1cm,labelwidth=0.9cm,labelsep=0.2cm,itemsep=1pt]
+\item[O1] \emph{Comprendre} : d'où viennent ces formes, et lesquelles ne sont que du bruit normal ?
+\item[O2] \emph{Contrôler} : \og j'ai le contrôle forward, j'ai le contrôle dividendes : combien vaut le contrôle
+repo ? \fg{} Peut-on contrôler la position repo sans dépendre des contributeurs dividendes ?
+\item[O3] \emph{Détecter} : comment signaler automatiquement une courbe Totem aberrante, en nommer la cause, et ne
+pas la confondre avec une erreur de marquage du FO ?
+\end{description}
+
+\medskip
+\textbf{Les réponses.}
+\begin{description}[leftmargin=1.1cm,labelwidth=0.9cm,labelsep=0.2cm,itemsep=2pt]
+\item[R1] Le repo implicite est égal au repo moyen du panel options, plus un \emph{écart de panel} : la différence
+entre deux moyennes de dividendes calculées sur des contributeurs différents. Pour une action européenne,
+cet écart vaut couramment \vGapOneY\,pb à un an et \vGapFiveY\,pb à cinq ans (\cref{sec-diagnostic}). Aucune méthode qui ne voit
+que les données Totem ne peut le retirer ; on peut en revanche en calculer la taille et reconnaître, à leur forme,
+les mécanismes qui produisent les vraies anomalies.
+\item[R2] Ligne repo $=$ ligne forward $-$ ligne dividendes $+$ ligne non-forward. Pour un portefeuille dont la
+valeur ne dépend que des forwards (options européennes, forwards, futures), la ligne non-forward est nulle : le
+contrôle total ne dépend pas des contributeurs dividendes, et il en est exactement indépendant en réévaluation
+complète (\cref{sec-controle}). Un vecteur d'exposition calculé à partir des seules sensibilités FO indique où la
+répartition entre repo et dividendes compte.
+\item[R3] Le détecteur structurel juge l'écart Totem--FO \og en portage \fg{}, avec une bande de bruit calculée à
+partir des dispersions et des nombres de contributeurs publiés par Totem, et teste une forme type par mécanisme
+(\cref{sec-detection}). Son taux de fausses alertes est fixé (\vFPR{} des sous-jacents sains) ; chaque alerte est
+expliquée en unités naturelles et accompagnée d'une courbe réparée. Sur un banc d'essai synthétique de \vNTest{}
+sous-jacents (\cref{sec-banc}), il détecte en moyenne autant que la meilleure alternative testée, B-spline et mélange
+gaussien (\vMeanStruct{} contre \vMeanGmmDiff{}), trouve bien mieux les forwards aberrants (\vFwdStruct{} contre
+\vFwdGmmDiff{}) et ne prend pas une erreur de marquage FO pour une courbe Totem aberrante (\vFoStruct{} d'alertes
+contre \vFoGmmDiff{}).
+\end{description}
+\end{bref}
+
+\newpage
+\section*{Comment lire cette note}
+Chaque section commence par son objectif et se termine par un encadré \og À retenir \fg{}. Un même sous-jacent
+synthétique, l'\emph{exemple fil rouge}, sert d'illustration du début à la fin (encadrés verts) : une action européenne
+observée d'abord dans un marché sain, puis sous huit anomalies différentes. Les démonstrations courtes suivent les
+énoncés ; les plus longues sont regroupées en \cref{app-proofs}.
+
+\begin{center}\small
+\begin{tabular}{>{\raggedright\arraybackslash}p{5.1cm}c>{\raggedright\arraybackslash}p{8.0cm}}
+\toprule
+Question & Section & Ce que l'on y trouve\\
+\midrule
+Que cherche-t-on, et pourquoi est-ce difficile ? & \ref{sec-probleme} & La chaîne de contrôle, l'effet loupe en $1/T$,
+l'exemple fil rouge\\
+Quelles notations ? & \ref{sec-cadre} & Forward, écart de portage, données Totem, passage au repo implicite\\
+\textbf{O1} D'où viennent les courbes aberrantes ? & \ref{sec-diagnostic} & L'écart de panel et sa taille, les sorties
+de contributeurs, six mécanismes et leurs signatures, ce que les données ne peuvent pas dire\\
+\textbf{O2} Comment contrôler le repo ? & \ref{sec-controle} & L'identité de contrôle, trois portefeuilles,
+la matérialité de la répartition repo/dividendes\\
+\textbf{O3} Comment détecter ? & \ref{sec-detection} & Le modèle de bruit, les formes types, le test, la calibration,
+le diagnostic de l'exemple fil rouge\\
+Est-ce que ça marche ? Et les B-splines, les mélanges, les réseaux de neurones ? & \ref{sec-banc} & Le banc d'essai
+et la comparaison avec les idées de départ\\
+Que faire en pratique ? & \ref{sec-reco} & Recommandations, données nécessaires, procédure mensuelle\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+{\small\setcounter{tocdepth}{2}\tableofcontents}
+\newpage

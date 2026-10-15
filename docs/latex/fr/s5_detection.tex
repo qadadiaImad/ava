@@ -1,0 +1,285 @@
+\section{Détecter les courbes aberrantes}\label{sec-detection}
+
+\begin{objectif}
+(O3) Construire un test qui signale une courbe Totem aberrante avec un taux de fausses alertes connu, nomme le
+mécanisme en cause, en donne l'amplitude en unités naturelles, répare la courbe, et distingue une anomalie Totem d'une
+erreur de marquage FO.
+\end{objectif}
+
+\subsection{Le principe en cinq étapes}
+\begin{enumerate}
+\item Calculer l'écart de portage $\delta$ et la covariance de son bruit à partir des dispersions et des nombres de
+contributeurs publiés par Totem (\cref{sec-noise}).
+\item Retirer un écart de repo lisse, $\beta_0+\beta_1\ln T$ : c'est un désaccord légitime entre Totem et le FO, pas une
+anomalie de courbe (\cref{sec-null}).
+\item Tester, une par une, les formes types de la \cref{prop-signatures} par un filtre adapté, avec un seuil commun
+qui fixe le taux de fausses alertes de l'ensemble des tests (\cref{sec-test}).
+\item En cas d'alerte, retenir les formes qui expliquent l'écart, donner leurs amplitudes en unités naturelles et la
+courbe réparée (\cref{sec-attribution}).
+\item Indépendamment, tester le niveau $\beta_0$ pour signaler une erreur de marquage FO possible
+(\cref{sec-attribution}).
+\end{enumerate}
+
+\subsection{Le modèle de bruit}\label{sec-noise}
+\begin{definition}[Modèle d'observation]\label{def-obs}
+Le détecteur modélise l'écart de portage par
+\begin{equation}\label{eq-obs}
+\delta=X\beta+\sum_{g\in\mathcal S}a_g\,g+\varepsilon, \qquad\varepsilon\sim\N(0, \kappa\Gamma),
+\end{equation}
+où $X\in\M_{N,2}(\R)$ a pour colonnes $(T_k)_k$ et $(T_k\ln T_k)_k$, de sorte que $X\beta$ est l'écart de repo lisse
+$\beta_0+\beta_1\ln T$ écrit en portage ; $\mathcal S$ est un ensemble, éventuellement vide, de formes types
+$g\in\R^N$ d'amplitudes $a_g$ ; $\Gamma$ est la covariance du bruit de consensus, construite ci-dessous à partir des
+statistiques Totem ; et $\kappa>0$ est une échelle unique, calibrée sur un historique sain. Sous l'hypothèse nulle,
+$\mathcal S=\emptyset$.
+\end{definition}
+
+D'après le \cref{lem-logf} et la \cref{prop-gap}, le bruit de consensus en portage est $\varepsilon_k=-e^{\opt}_k-
+e^{\dv}_k$, où $e^{\opt}_k$ est l'erreur du consensus $\ln F^{\tot}_k$ du panel options et
+$e^{\dv}_k=\delta D^{\tot}_k/(S_0-D_k)$ celle des dividendes de consensus alloués. On prend les deux panels
+indépendants ($n^{\com}=0$, le cas prudent), donc $\Gamma=\Gamma^{\opt}+\Gamma^{\dv}$. Totem publie, pour chaque
+maturité, la dispersion $\sigma^F_k$ des forwards des contributeurs, d'où la dispersion relative $s_k=\sigma^F_k/F^{\tot}_k$,
+et, pour chaque période, la dispersion $\sigma^\ell_p$ des niveaux de dividendes.
+
+\begin{proposition}[Covariance du bruit]\label{prop-noise}
+On décompose la dispersion relative des forwards en une part repo et une part dividendes,
+$s_k^2=\sigma_q^2T_k^2+s_k'^2$, où $\sigma_q$ est la dispersion des vues de repo des contributeurs. On suppose les vues
+de repo persistantes en maturité, et les vues de dividendes formées d'un facteur persistant, de poids $w\in[0,1]$, et
+d'incréments indépendants. Alors
+\begin{align}
+\Gamma^{\opt}_{kl}&=\frac{\sigma_q^2\,T_kT_l+w\,s'_ks'_l+(1-w)\min(s'_k, s'_l)^2}{\max\bigl(n^{\opt}_k, n^{\opt}_l\bigr)},
+\label{eq-gamma-opt}\\
+\Gamma^{\dv}&=A_S\,\Gamma^\ell\,\tr{A_S}, \qquad(A_S)_{kp}=\frac{a_{kp}}{S_0-D_k}, \qquad
+\Gamma^\ell_{pp'}=\frac{\rho_{pp'}\,\sigma^\ell_p\sigma^\ell_{p'}}{\max\bigl(n^{\dv}_p, n^{\dv}_{p'}\bigr)} ,
+\label{eq-gamma-div}
+\end{align}
+où $\rho_{pp'}$ est la corrélation des erreurs de vue entre les périodes $p$ et $p'$.
+\end{proposition}
+La démonstration est en \cref{app-noise}. Le prototype prend $w=1/2$, $\rho_{pp'}=e^{-|c_p-c_{p'}|/2}$ pour des périodes
+de milieux $c_p$ et $c_{p'}$ (en années), et lit $\sigma_q$ sur le court terme, où l'incertitude sur les dividendes est
+négligeable : c'est la médiane de $s_k/T_k$ sur les trois premiers piliers (le minimum, biaisé vers le bas,
+sous-estimerait l'incertitude sur le niveau de repo). Un terme diagonal tient compte du résidu de l'ajustement de la
+parité. L'échelle $\kappa$ absorbe un biais commun de ces réglages ; c'est la \emph{forme} de $\Gamma$ qui rend le
+détecteur puissant, car elle lui indique quels écarts sont bon marché (lisses, longs) et lesquels sont coûteux (courts,
+localisés).
+
+\paragraph{Les pics de dispersion sont des symptômes.} Quand une partie des contributeurs place un dividende de l'autre
+côté d'une échéance (\cref{prop-signatures}, (iii)), la dispersion publiée à cette échéance augmente. La garder telle
+quelle dans $\Gamma$ masquerait l'anomalie même qu'elle signale.
+
+\begin{proposition}[Masquage]\label{prop-masking}
+Dans la situation (iii) de la \cref{prop-signatures}, soit $s_k$ la dispersion hors désaccord et
+$\Delta=\tilde d_i/(S_0-D_k)$. La statistique du déplacement en $T_k$, calculée avec la dispersion publiée, vaut
+\[
+z=\frac{f\,\Delta}{\sqrt{s_k^2+f(1-f)\Delta^2}\big/\sqrt{n^{\opt}_k}}\;\le\;\sqrt{\frac{n^{\opt}_k\,f}{1-f}}
+\]
+quelle que soit la taille du dividende, alors qu'avec la dispersion hors désaccord, $z$ croît linéairement avec
+$\Delta$.
+\end{proposition}
+\begin{proof}
+Le déplacement moyen et la variance supplémentaire sont donnés par la \cref{prop-signatures}, (iii) ; quand
+$\Delta\to+\infty$, le quotient croît vers $\sqrt{n^{\opt}_k}\,f/\sqrt{f(1-f)}$.
+\end{proof}
+Avec $f=\num{0.375}$ et $n^{\opt}_k=16$, la borne vaut $\num{3.1}$ : à peine le seuil du test, si bien que le désaccord
+passerait souvent inaperçu. Le prototype plafonne donc un pic isolé de dispersion à $\num{1.5}$ fois la plus grande des
+deux dispersions voisines avant de construire $\Gamma$, et publie le rapport à la voisine, qui est lui-même un
+indicateur de désaccord. Dans l'exemple fil rouge, ce rapport vaut \vRunTimingRatio{} à six mois dans le scénario de
+désaccord de date, et reste inférieur à $2$ partout ailleurs.
+
+\subsection{Le modèle nul : ce qui n'est pas une anomalie}\label{sec-null}
+Le terme $X\beta$ représente un écart de repo lisse entre Totem et le FO : $\beta_0$ est l'écart de repo à un an (car
+$\ln1=0$) et $\beta_1$ sa pente par unité de $\ln T$. Un tel écart peut venir d'une vraie différence de vue sur le repo,
+d'une erreur de marquage du FO ou d'un biais lisse du consensus ; dans tous les cas, ce n'est pas une courbe
+\emph{aberrante}. Le détecteur le retire de chaque test et le publie à part : $\hat\beta_0$ alimente le test d'erreur de
+marquage FO (\cref{sec-attribution}). Si deux paramètres se révèlent trop rigides sur les données réelles, une spline
+pénalisée peut remplacer $X\beta$~\cite{eilers1996} ; rien d'autre ne change.
+
+\subsection{Formes types et test}\label{sec-test}
+Chaque mécanisme de la \cref{prop-signatures} définit une forme type $g\in\R^N$, testée à chaque position possible
+(\cref{tab-templates}). Avec onze piliers, on obtient \vNTemplates{} formes types.
+
+\begin{table}[ht]
+\centering
+\caption{Formes types du détecteur. $\one$ est le vecteur dont toutes les composantes valent $1$, $e_k$ le $k$-ième
+vecteur de la base canonique et $K_h$ un noyau gaussien de largeur $h=20$ jours. Les unités naturelles découlent de la
+\cref{prop-signatures}. Un pic au dernier pilier est le même vecteur qu'une marche à ce pilier.}
+\label{tab-templates}
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.9cm}>{\raggedright\arraybackslash}p{3.6cm}
+>{\raggedright\arraybackslash}p{4.2cm}>{\raggedright\arraybackslash}p{4.0cm}@{}}
+\toprule
+Forme type & Vecteur $g$ & Mécanismes & Amplitude $a$ en unités naturelles\\
+\midrule
+niveau & $\one$ & décalage du spot ; dividende avant $T_1$ & spot : $\varepsilon\approx-a$ ;
+dividende : $\delta d\approx-a\,(S_0-D_1)$\\
+marche en $T_k$ & $\bigl(\one_{\{l\ge k\}}\bigr)_{l\in\ient1N}$ & dividendes détachés dans $\intoc{T_{k-1}}{T_k}$ ;
+sortie de contributeurs en $T_k$ & $\delta\ell\approx-a\,(S_0-D_k)$\\
+pic en $T_k$ & $e_k$ & forward aberrant ; désaccord de date autour de $T_k$ & $\mu\approx-a$ ; part du dividende
+$f\approx a\,(S_0-D_k)/\tilde d_i$\\
+saison & $\Bigl(\sum_i\dfrac{\tilde d_i\,K_h(T_k-t_i)}{S_0-D_k}\Bigr)_k$ & profil de détachement décalé & décalage
+$\Delta\approx a$ années\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Blanchiment et projection.} Soit $W\in\M_N(\R)$ une matrice de blanchiment, telle que
+$W(\kappa\Gamma)\tr{W}=I_N$ (par exemple $W=L^{-1}$ avec la factorisation de Cholesky $\kappa\Gamma=L\,\tr{L}$), et
+$\Pi$ la projection orthogonale sur l'orthogonal des colonnes de $WX$. On pose
+\[
+\eh=\Pi W\delta\quad\text{(résidu blanchi)}, \qquad\gt=\Pi Wg\quad\text{(forme type blanchie)}.
+\]
+Après blanchiment, le bruit est un vecteur gaussien de covariance identité, et la projection retire l'écart de repo
+lisse.
+
+\begin{theorem}[Test du rapport de vraisemblance pour une forme type]\label{thm-glrt}
+Dans le modèle $\delta=X\beta+a\,g+\varepsilon$, $\varepsilon\sim\N(0, \kappa\Gamma)$, avec $\beta$ inconnu, la
+statistique du rapport de vraisemblance généralisé de $H_0:a=0$ contre $H_1:a\ne0$ est $z_g^2$, avec
+\begin{equation}\label{eq-z}
+z_g=\frac{\sprod{\gt}{\eh}}{\norm{\gt}}\sim\N\bigl(a\norm{\gt}, 1\bigr).
+\end{equation}
+L'estimateur du maximum de vraisemblance de l'amplitude est $\hat a_g=\sprod{\gt}{\eh}/\norm{\gt}^2$, d'écart-type
+$1/\norm{\gt}$. Parmi les tests invariants par le sous-espace du modèle nul et par le signe de $a$, celui qui rejette
+pour les grandes valeurs de $|z_g|$ est uniformément le plus puissant.
+\end{theorem}
+\begin{proof}
+On a $W\delta=WX\beta+a\,Wg+W\varepsilon$ avec $W\varepsilon\sim\N(0, I_N)$ ; la log-vraisemblance maximisée vaut, à une
+constante près, $-\tfrac12$ fois la somme des carrés des résidus. Sous $H_0$, cette somme vaut $\norm{\eh}^2$ ; sous
+$H_1$, d'après le théorème de Frisch, Waugh et Lovell~\cite{lovell1963}, elle vaut
+$\norm{\eh}^2-\sprod{\gt}{\eh}^2/\norm{\gt}^2$. Donc $2\ln\Lambda=z_g^2$, et $\hat a_g$ est le coefficient de la
+régression partielle. Comme $\Pi WX=0$ et que $\Pi$ est symétrique et idempotente,
+$\eh=a\,\gt+\Pi W\varepsilon$ et $\sprod{\gt}{\eh}=a\norm{\gt}^2+\sprod{\gt}{W\varepsilon}$, où
+$\sprod{\gt}{W\varepsilon}\sim\N(0, \norm{\gt}^2)$. L'optimalité est le résultat des détecteurs de sous-espace adapté de
+Scharf et Friedlander~\cite{scharf1994}.
+\end{proof}
+
+\begin{corollary}[Puissance]\label{cor-power}
+Au seuil $c$, une anomalie de forme $g$ est détectée avec probabilité $\Phi(\lambda-c)+\Phi(-\lambda-c)$, où $\Phi$ est
+la fonction de répartition de la loi normale centrée réduite et $\lambda=|a|\,\norm{\gt}$ le \emph{rapport signal sur
+bruit} de l'anomalie. Au seuil typique du banc d'essai, $c\approx\vZcrit$, une anomalie de rapport $\lambda=4$ est
+détectée avec probabilité \vPowThFour{} et une anomalie de rapport $\lambda=6$ avec probabilité \vPowThSix.
+\end{corollary}
+
+\begin{proposition}[Test global et seuil commun]\label{prop-family}
+Sous $H_0$ :
+\begin{enumerate}[label=(\roman*)]
+\item $\norm{\eh}^2$ suit une loi du $\chi^2$ à $N-2$ degrés de liberté ; ce test global détecte une rugosité
+qu'aucune forme type n'explique ;
+\item le vecteur $(z_g)_{g}$ est gaussien centré, de matrice de corrélation
+$\Omega_{gh}=\sprod{\gt}{\tilde h}/(\norm{\gt}\norm{\tilde h})$, qui ne dépend ni de $\beta$ ni de $\kappa$ ; le seuil
+$c_\alpha$ tel que $\mathbb P(\max_g|z_g|>c_\alpha)=\alpha/2$ se calcule exactement en simulant $\N(0, \Omega)$, et il
+est inférieur au seuil de Šidák~\cite{sidak1967} ;
+\item la règle \og alerte si $\max_g|z_g|>c_\alpha$ ou si $\norm{\eh}^2$ dépasse son quantile d'ordre $1-\alpha/2$
+\fg{} a un taux de fausses alertes au plus égal à $\alpha$.
+\end{enumerate}
+\end{proposition}
+\begin{proof}
+(i) $\eh=\Pi W\varepsilon$ et $\Pi$ est une projection orthogonale de rang $N-2$. (ii) $z_g$ est une forme linéaire
+de $W\varepsilon$ ; l'inégalité de Šidák donne $\mathbb P(\max_g|z_g|\le c)\ge\prod_g\mathbb P(|z_g|\le c)$ pour toute
+corrélation. (iii) Inégalité de la réunion.
+\end{proof}
+
+\begin{proposition}[Calibration exacte de l'échelle]\label{prop-kappa}
+Remplacer $\kappa=1$ par $\kappa$ divise chaque $z_g$ par $\sqrt\kappa$ et $\norm{\eh}^2$ par $\kappa$, sans changer
+$c_\alpha$. Sur un historique sain, le taux d'alerte est donc une fonction décroissante de $\kappa$, et le plus petit
+$\kappa$ dont le taux d'alerte ne dépasse pas la cible $\alpha$ s'obtient exactement par dichotomie.
+\end{proposition}
+\begin{proof}
+Blanchir avec $\kappa\Gamma$ multiplie $W$ par $\kappa^{-1/2}$ ; $\Pi$ et $\Omega$ ne changent pas.
+\end{proof}
+
+\subsection{Explication, courbe réparée et erreur de marquage FO}\label{sec-attribution}
+\paragraph{Explication.} Après une alerte, les formes types sont retenues une à une : à chaque étape, on ajoute celle
+dont le $|z|$ est le plus grand après projection du modèle nul et des formes déjà retenues, tant qu'il dépasse
+$c_\alpha$ (poursuite adaptative~\cite{mallat1993}). Les formes retenues sont ensuite réajustées conjointement avec le
+modèle nul par moindres carrés généralisés, et chaque amplitude est traduite en unités naturelles
+(\cref{tab-templates}).
+
+\paragraph{Courbe réparée.} La courbe Totem réparée retire l'anomalie et garde tout le reste :
+\[
+q^{\text{rép}}_k=q^{\tot}_k-\frac{1}{T_k}\sum_{g\in\mathcal S}\hat a_g\,g_k .
+\]
+Les formes contenues dans le sous-espace du modèle nul sont indétectables par construction : un écart de repo lisse
+est un désaccord légitime, publié mais jamais signalé comme anomalie de courbe.
+
+\paragraph{Erreur de marquage FO.} Le niveau $\hat\beta_0$ (Totem moins FO, à un an) et son écart-type proviennent du
+même ajustement. Le repo FO est signalé comme erreur de marquage possible lorsque $|\hat\beta_0|$ dépasse à la fois
+$10$\,pb et $t_{\nu,1-\alpha/2}\,s\,\sigma(\hat\beta_0)$, où :
+\begin{itemize}
+\item $t_{\nu,1-\alpha/2}$ est un quantile de la loi de Student à $\nu=n^{\opt}-1$ degrés de liberté sur le court
+terme : l'écart-type repose sur des dispersions estimées à partir d'une poignée de contributeurs
+(\cref{app-student}) ;
+\item $s\ge1$ est une échelle calibrée sur l'historique sain comme $\kappa$, pour que les sous-jacents sains déclenchent
+au plus une proportion $\alpha$ d'alertes d'erreur de marquage ; elle vaut \vLevelScaleEuStock, \vLevelScaleUsStock,
+\vLevelScaleHtb{} et \vLevelScaleIndex{} pour les quatre catégories du banc d'essai.
+\end{itemize}
+Les algorithmes complets (bootstrap, détection, calibration) sont en \cref{app-algos}.
+
+\subsection{Un exemple à la main}
+\begin{example}[Quatre piliers]\label{ex-toy}
+Piliers $T=(\num{0.25}\,;\num{0.5}\,;1\,;2)$, bruit indépendant d'écarts-types $(1\,;2\,;4\,;8)$\,pb de portage,
+modèle nul réduit au niveau de repo ($X=T$), niveau vrai de $30$\,pb, pic de $12$\,pb en $T_2$ et bruit
+$(\num{0.4}\,;\num{-1.1}\,;\num{2.6}\,;\num{-3.0})$\,pb, d'où $\delta=(\num{7.9}\,;\num{25.9}\,;\num{32.6}\,;\num{57.0})$\,pb.
+Le niveau ajusté vaut $\hat\beta_0=\vToyBeta$\,pb et $\norm{\eh}^2=\vToyQ$ (le quantile d'ordre \pct{99} de la loi
+$\chi^2(3)$ vaut \num{11.3}). Les \vToyM{} formes types donnent :
+\begin{center}\input{generated/\lang/tab_toy}\end{center}
+Le seuil commun à $\alpha=\pct{2}$ vaut $c_\alpha=\vToyC$ (Šidák : \vToyCsidak). Le pic en $T_2$ l'emporte
+($z=\vToyZbest$, amplitude $\vToyAmpBest\pm\vToySeBest$\,pb pour $12$ injectés) ; la marche à partir de $T_2$ obtient
+aussi un score élevé, car les deux formes sont corrélées. La poursuite adaptative retient le pic ; ensuite, tous les
+$|z|$ restants sont inférieurs à \vToyZafter{} et $\norm{\eh}^2$ tombe à \vToyQafter{} : une seule explication suffit.
+\end{example}
+
+\subsection{Retour à l'exemple fil rouge}\label{sec-retour}
+\begin{filrouge}
+Le \cref{tab-running} donne, pour l'action de l'exemple fil rouge, le diagnostic du détecteur dans les neuf
+situations de la \cref{fig-gallery}, avec l'échelle $\kappa=\vRunKappa$ calibrée pour les actions européennes et
+$\alpha=\pct{2}$. Le marché sain ne déclenche rien ($\max_g|z_g|=\vRunMaxZ<c_\alpha=\vRunCrit$, et le test global a une
+$p$-valeur de \vRunChiP).
+\end{filrouge}
+
+\begin{table}[ht]
+\centering
+\caption{Exemple fil rouge : ce qui est injecté et ce qu'en dit le détecteur. $z$ est la statistique \eqref{eq-z} de
+la première forme retenue ; les amplitudes sont traduites en unités naturelles (\cref{tab-templates}).}
+\label{tab-running}
+\input{generated/\lang/tab_running}
+\end{table}
+
+Plusieurs points méritent d'être relevés.
+\begin{itemize}
+\item \textbf{Les mécanismes sont bien nommés.} Spot, période de dividendes, date de détachement, profil et forward
+aberrant sont tous attribués à la bonne forme type et à la bonne maturité. Le décalage du spot est retrouvé à
+\vRunSpotEst{} pour \vRunSpotEps{} injectés ; le forward aberrant à \vRunFwdEst\,pb (écart-type \vRunFwdSe) pour
+\vRunFwdShift\,pb.
+\item \textbf{Les amplitudes sont des estimations.} L'erreur sur 2027 est estimée à \vRunBucketEst{} (écart-type
+\vRunBucketSe) pour \vRunBucketDelta{} injectés : le bruit propre du marché sain à neuf mois (l'écart de panel de la
+\cref{fig-clean}) se retranche de l'estimation. La part du dividende mal placé est estimée à \vRunTimingEst{} pour
+\vRunTimingShare{} injectés, parce que le filtre des cotations aberrantes du consensus a déjà écarté une partie des
+contributeurs en désaccord. Le décalage de profil est estimé à \vRunSeasonEst~jours pour \vRunSeasonShift : la
+conversion en jours est une linéarisation, juste en signe et en ordre de grandeur.
+\item \textbf{Ce qui est lisse n'est pas signalé.} Le sous-panel long biaisé produit une déformation lisse après la
+sortie de contributeurs de \vRunPanelTenor{} ; elle est absorbée par l'écart de repo lisse et le détecteur ne signale
+rien ($\max_g|z_g|=\vRunPanelMaxZ$). C'est le \cref{thm-nonid} à l'œuvre. De même, le biais brut/net est vu comme une
+marche au premier détachement (\vRunGrossEst{} sur le dividende de 2027) plus une pente de repo, comme le prévoit la
+\cref{prop-signatures}, (vi).
+\item \textbf{Une erreur FO n'est pas une courbe aberrante.} Quand c'est le repo FO qui est faux, aucune anomalie de
+courbe n'est signalée, et le test de niveau trouve $\hat\beta_0=\vRunFoLevel$\,pb (écart-type \vRunFoSe), au-delà du
+seuil de \vRunFoThr\,pb : erreur de marquage FO possible.
+\end{itemize}
+
+\begin{figure}[ht]
+\centering\includegraphics[width=\linewidth]{figures/\lang/decomposition.pdf}
+\caption{Exemple fil rouge, erreur sur la période 2027 de la \cref{fig-gallery}(b), vue en portage : écart observé,
+écart de repo lisse ajusté avec sa bande de $\pm2$ écarts-types, et ajustement lisse plus la marche retenue. Aux
+maturités longues, le bruit est si grand que les points s'écartent de l'ajustement sans que cela soit significatif.}
+\label{fig-decomposition}
+\end{figure}
+
+\begin{retenir}
+\begin{itemize}[leftmargin=12pt]
+\item Le détecteur juge l'écart de portage avec un bruit calculé à partir des statistiques Totem, retire l'écart de
+repo lisse, puis teste une forme type par mécanisme.
+\item Chaque test est un filtre adapté exact ; le seuil commun et l'échelle $\kappa$ fixent exactement le taux de
+fausses alertes ; la puissance est connue en forme fermée.
+\item Chaque alerte vient avec une explication en unités naturelles et une courbe réparée ; le niveau $\hat\beta_0$
+sépare les erreurs de marquage FO des anomalies Totem.
+\end{itemize}
+\end{retenir}

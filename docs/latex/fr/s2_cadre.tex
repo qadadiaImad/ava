@@ -1,0 +1,168 @@
+\section{Cadre et notations}\label{sec-cadre}
+
+\begin{objectif}
+Fixer les notations et établir les trois outils dont la suite a besoin : la formule du forward, l'écart de portage,
+et le passage des données Totem au repo implicite.
+\end{objectif}
+
+\subsection{Conventions}
+Le temps est mesuré en années à partir de la date de valorisation, et les taux sont des taux zéro-coupon en
+composition continue. Les scalaires et les vecteurs sont notés en minuscules, les matrices en majuscules ;
+$\tr{A}$ désigne la transposée de $A$, $\M_{N,m}(\R)$ l'espace des matrices à $N$ lignes et $m$ colonnes,
+$\sprod{x}{y}=\tr{x}\,y$ le produit scalaire de $\R^N$ et $\norm{x}$ la norme associée. L'exposant $\tot$ désigne une
+grandeur issue de Totem et l'exposant $\fo$ une grandeur du front office. Le point de base (pb) vaut $10^{-4}$ ; un
+écart de portage s'exprime en points de base du spot. Les notations sont récapitulées en \cref{app-notation}.
+
+\subsection{Forward et dividendes discrets}
+On note $S_0$ le spot, $r(T)$ le taux zéro-coupon de maturité $T$, et $q(T)$ le taux zéro-coupon de \emph{repo},
+c'est-à-dire le coût d'emprunt du titre : détenir l'action financée par un repo rapporte $r-q$ par unité de temps.
+Les dividendes sont discrets : un montant $d_i$ est détaché à la date $t_i$. On note
+$\tilde d_i=d_i\,e^{-(r(t_i)-q(t_i))\,t_i}$ le dividende actualisé au taux de portage.
+
+\begin{definition}[Forward]\label{def-forward}
+Le forward de maturité $T$ vaut
+\begin{equation}\label{eq-forward}
+F(T)=\bigl(S_0-D(T)\bigr)\,e^{(r(T)-q(T))\,T}, \qquad D(T)=\sum_{t_i\le T}\tilde d_i .
+\end{equation}
+$D(T)$ est la somme des dividendes détachés avant $T$, actualisés au taux de portage.
+\end{definition}
+
+C'est l'argument de réplication habituel : on achète l'action en la finançant au taux $r-q$ et on reporte les
+dividendes perçus. Le repo intervient aussi, faiblement, dans $D$ par l'actualisation des dividendes ; le bootstrap de
+la \cref{sec-bootstrap} traite ce couplage exactement.
+
+\begin{lemma}[Logarithme du forward]\label{lem-logf}
+$\ln F(T)=\bigl(r(T)-q(T)\bigr)\,T+\ln\bigl(S_0-D(T)\bigr)$. Par conséquent, des perturbations du forward, des
+dividendes et du repo vérifient, au premier ordre,
+\begin{equation}\label{eq-additivity}
+\delta\bigl(q(T)\,T\bigr)=\delta\bigl(r(T)\,T\bigr)-\delta\ln F(T)-\frac{\delta D(T)}{S_0-D(T)} .
+\end{equation}
+\end{lemma}
+\begin{proof}
+On prend le logarithme de \eqref{eq-forward}, puis on différentie, avec $\delta\ln(S_0-D)=-\delta D/(S_0-D)+O(\delta D^2)$.
+\end{proof}
+
+\subsection{L'écart de portage}
+Les maturités Totem, ou \emph{piliers}, sont $T_1<\dots<T_N$ (ici $N=11$, d'un mois à cinq ans). Pour toute grandeur
+$x$, on note $x_k=x(T_k)$.
+
+\begin{definition}[Écart de portage]\label{def-delta}
+L'\emph{écart de portage} au pilier $T_k$ est
+\begin{equation}\label{eq-delta}
+\delta_k=\bigl(q^{\tot}_k-q^{\fo}_k\bigr)\,T_k, \qquad k\in\ient1N,
+\end{equation}
+où $q^{\tot}$ est le repo implicite Totem (\cref{def-implied}) et $q^{\fo}$ le repo du FO. On note
+$\delta=(\delta_1, \dots, \delta_N)\in\R^N$.
+\end{definition}
+
+\begin{proposition}[Le repo, différence du forward et des dividendes]\label{prop-delta}
+Le contrôleur utilise la même courbe des taux des deux côtés. Alors, au couplage près par l'actualisation des
+dividendes,
+\begin{equation}\label{eq-delta-exact}
+\delta_k=-\ln\frac{F^{\tot}_k}{F^{\fo}_k}+\ln\frac{S_0-D^{\tot}_k}{S_0-D^{\fo}_k}
+\;\approx\;-\frac{F^{\tot}_k-F^{\fo}_k}{F_k}-\frac{D^{\tot}_k-D^{\fo}_k}{S_0-D_k} .
+\end{equation}
+\end{proposition}
+\begin{proof}
+Par construction, le repo implicite Totem reproduit le forward Totem avec les dividendes Totem, et le repo FO le
+forward FO avec les dividendes FO. On applique le \cref{lem-logf} des deux côtés et on soustrait : les termes de taux
+s'éliminent. L'approximation vient de $\ln(1+x)=x+O(x^2)$.
+\end{proof}
+
+L'écart de repo, exprimé en portage, est donc l'écart relatif de forward moins l'écart relatif de dividendes. C'est
+déjà, sous une forme élémentaire, l'intuition du contrôleur : contrôle repo $=$ contrôle forward $-$ contrôle
+dividendes. La \cref{sec-controle} en fait une identité sur les lignes de contrôle.
+
+\begin{retenir}
+Pourquoi travailler en portage plutôt qu'en repo : dans $\delta$, les effets des différents mécanismes
+\emph{s'additionnent}, et rien n'est amplifié. Une erreur constante $\varepsilon$ sur $\ln F$ est une constante en
+portage et une hyperbole $\varepsilon/T$ en repo. Tous les tests de cette note portent donc sur $\delta$.
+\end{retenir}
+
+\subsection{Les données Totem}
+\begin{assumption}[Contributeurs cohérents]\label{hyp-coherent}
+Le contributeur $j$ a une vue $q_j(\cdot)$ du repo et une vue $D_j(\cdot)$ des dividendes, et cote des prix d'options
+cohérents avec le forward $F_j(T)=\bigl(S_0-D_j(T)\bigr)\,e^{(r(T)-q_j(T))T}$, le spot et la courbe des taux étant
+communs.
+\end{assumption}
+
+\begin{assumption}[Panels]\label{hyp-panels}
+Au pilier $T_k$, le panel options $\Popt_k$ compte $n^{\opt}_k$ contributeurs ; pour la période $p$, le panel
+dividendes $\Pdiv_p$ en compte $n^{\dv}_p$. Les panels sont emboîtés en maturité : un contributeur qui cote une
+maturité longue cote aussi les plus courtes. Les erreurs de vue sont indépendantes d'un contributeur à l'autre. Les
+deux services ont $n^{\com}$ contributeurs en commun ($n^{\com}=0$ pour des panels disjoints).
+\end{assumption}
+
+\begin{assumption}[Consensus]\label{hyp-consensus}
+Le consensus est la moyenne arithmétique sur le panel (après un éventuel filtre des cotations aberrantes). Totem publie,
+par maturité et par période, le consensus, la dispersion entre contributeurs et leur nombre.
+\end{assumption}
+
+\subsection{Du consensus au repo implicite}\label{sec-bootstrap}
+Le passage se fait en trois étapes.
+
+\paragraph{Forwards par la parité call--put.}
+\begin{lemma}[Parité et forward de consensus]\label{lem-parity}
+Si chaque contributeur cote des calls et des puts européens avec un même facteur d'actualisation $B(0, T)$, alors
+$C_j(K)-P_j(K)=B(0, T)\,(F_j-K)$ pour tout strike $K$. Si le consensus moyenne les mêmes contributeurs à chaque strike,
+$\bar C(K)-\bar P(K)=B(0, T)\,(\bar F-K)$, où $\bar F$ est la moyenne des forwards des contributeurs. Le strike où
+$\bar C=\bar P$ est donc $\bar F$, et il ne dépend pas de $B(0, T)$.
+\end{lemma}
+\begin{proof}
+La première égalité est la parité call--put ; la deuxième s'obtient en moyennant la première, qui est affine ; la
+troisième en annulant la deuxième.
+\end{proof}
+En pratique, on ajuste par moindres carrés pondérés la droite $K\mapsto\bar C(K)-\bar P(K)$ ; sa racine est le forward
+Totem $F^{\tot}_k$ et sa pente donne un facteur d'actualisation implicite, qui sert de diagnostic. Deux situations
+mettent le lemme en défaut : un filtre des cotations aberrantes appliqué séparément par strike et par type d'option (les
+contributeurs moyennés ne sont alors plus les mêmes) et l'exercice américain. Un exemple chiffré et le cas de facteurs
+d'actualisation différents d'un contributeur à l'autre figurent en \cref{app-parity}.
+
+\paragraph{Allocation des dividendes.} Les niveaux Totem $\ell_p$ sont des sommes de dividendes détachés dans la
+période $I_p=\intoc{e_{p-1}}{e_p}$, $p\in\ient1m$ (ici $m=6$ : la fin de 2026, puis 2027 à 2031). Le contrôleur les
+répartit sur les dates de détachement de la prévision FO : un profil attribue un poids $\pi_i\ge0$ à chaque date, avec
+$\sum_{t_i\in I_p}\pi_i=1$, et le dividende alloué vaut $d_i=\ell_p\,\pi_i$.
+
+\begin{lemma}[Allocation]\label{lem-allocation}
+À repo fixé,
+\[
+D_k=\sum_{p=1}^m a_{kp}\,\ell_p, \qquad a_{kp}=\sum_{t_i\in I_p,\ t_i\le T_k}\pi_i\,e^{-(r(t_i)-q(t_i))\,t_i} .
+\]
+On note $A=(a_{kp})\in\M_{N,m}(\R)$ la matrice d'allocation.
+\end{lemma}
+\begin{proof}
+On remplace $d_i$ par $\ell_p\pi_i$ dans \eqref{eq-forward} et on regroupe les termes par période.
+\end{proof}
+Le coefficient $a_{kp}$ est la part, actualisée, de la période $p$ détachée avant $T_k$. Il est nul si la période
+commence après $T_k$, et égal au facteur d'actualisation de la période (proche de $1$) si elle est entièrement détachée
+avant $T_k$ ; entre les deux, pour une période qui chevauche un pilier, il dépend du profil : c'est précisément là que
+le profil compte.
+
+\paragraph{Bootstrap.} On cherche une courbe de repo à repo forward constant entre deux piliers, c'est-à-dire telle que
+$t\mapsto q(t)\,t$ soit affine sur chaque $[T_{k-1}, T_k]$, qui reproduise les forwards. On la construit pilier par
+pilier : connaissant $q_1, \dots, q_{k-1}$, l'inconnue est $x=q_kT_k$, et le forward du modèle en $T_k$ est une fonction
+$\mathcal F_k(x)$, explicitée en \cref{app-bootstrap}.
+
+\begin{proposition}[Le bootstrap est bien posé]\label{prop-bootstrap}
+On suppose $S_0-D_{k-1}>0$. La fonction $\mathcal F_k$ vérifie $\mathcal F_k'\le-\mathcal F_k$ ; elle est donc
+strictement décroissante là où elle est positive. Pour tout $F_k>0$, l'équation $\mathcal F_k(x)=F_k$ a une unique
+solution, et la méthode de Newton appliquée à $x\mapsto\ln\mathcal F_k(x)-\ln F_k$, sécurisée par dichotomie, converge
+vers elle.
+\end{proposition}
+La démonstration, un exemple à la main et l'algorithme sont en \cref{app-bootstrap}.
+
+\begin{definition}[Repo implicite Totem]\label{def-implied}
+Le \emph{repo implicite Totem} $q^{\tot}$ est la solution du bootstrap pour les forwards $F^{\tot}_k$ et les niveaux
+de dividendes Totem $\ell^{\tot}_p$ alloués sur le profil FO. On note aussi $\hat q$ la solution pour les forwards
+Totem et les dividendes \emph{FO} : elle ne dépend de Totem qu'à travers ses forwards.
+\end{definition}
+
+\begin{retenir}
+\begin{itemize}[leftmargin=12pt]
+\item $\delta_k=(q^{\tot}_k-q^{\fo}_k)\,T_k$ : l'écart de repo exprimé en portage, en points de base du spot.
+\item $\delta_k\approx-$ (écart relatif de forward) $-$ (écart relatif de dividendes) : le repo implicite est un
+résidu.
+\item Le passage de Totem au repo implicite (parité, allocation, bootstrap) est exact et bien posé ; les difficultés
+viennent des données, pas de l'algorithme.
+\end{itemize}
+\end{retenir}

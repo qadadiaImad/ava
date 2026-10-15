@@ -1,0 +1,273 @@
+\section{Detecting bad curves}\label{sec-detection}
+
+\begin{objectif}
+(G3) Build a test that flags a bad Totem curve with a known false alarm rate, names the mechanism at work, gives its
+size in natural units, repairs the curve, and tells a Totem anomaly from an FO mismark.
+\end{objectif}
+
+\subsection{The principle in five steps}
+\begin{enumerate}
+\item Compute the carry difference $\delta$ and the covariance of its noise from the dispersions and contributor
+counts that Totem publishes (\cref{sec-noise}).
+\item Remove a smooth repo difference, $\beta_0+\beta_1\ln T$: it is a legitimate disagreement between Totem and the
+FO, not a curve anomaly (\cref{sec-null}).
+\item Test the typical shapes of \cref{prop-signatures} one by one with a matched filter, with a common threshold that
+fixes the false alarm rate of the whole family of tests (\cref{sec-test}).
+\item On an alarm, select the shapes that explain the difference, give their sizes in natural units and the repaired
+curve (\cref{sec-attribution}).
+\item Independently, test the level $\beta_0$ to flag a possible FO mismark (\cref{sec-attribution}).
+\end{enumerate}
+
+\subsection{The noise model}\label{sec-noise}
+\begin{definition}[Observation model]\label{def-obs}
+The detector models the carry difference as
+\begin{equation}\label{eq-obs}
+\delta=X\beta+\sum_{g\in\mathcal S}a_g\,g+\varepsilon, \qquad\varepsilon\sim\N(0, \kappa\Gamma),
+\end{equation}
+where $X\in\M_{N,2}(\R)$ has columns $(T_k)_k$ and $(T_k\ln T_k)_k$, so that $X\beta$ is the smooth repo difference
+$\beta_0+\beta_1\ln T$ written in carry; $\mathcal S$ is a possibly empty set of typical shapes $g\in\R^N$ with sizes
+$a_g$; $\Gamma$ is the covariance of the consensus noise, built below from Totem's statistics; and $\kappa>0$ is a
+single scale, calibrated on clean history. Under the null hypothesis, $\mathcal S=\emptyset$.
+\end{definition}
+
+By \cref{lem-logf} and \cref{prop-gap}, the consensus noise in carry is $\varepsilon_k=-e^{\opt}_k-e^{\dv}_k$, where
+$e^{\opt}_k$ is the error of the option panel's consensus $\ln F^{\tot}_k$ and $e^{\dv}_k=\delta D^{\tot}_k/(S_0-D_k)$
+that of the allocated consensus dividends. We take the two panels as independent ($n^{\com}=0$, the cautious case), so
+$\Gamma=\Gamma^{\opt}+\Gamma^{\dv}$. For each maturity, Totem publishes the dispersion $\sigma^F_k$ of the contributors'
+forwards, hence the relative dispersion $s_k=\sigma^F_k/F^{\tot}_k$, and, for each period, the dispersion
+$\sigma^\ell_p$ of the dividend levels.
+
+\begin{proposition}[Noise covariance]\label{prop-noise}
+Split the relative forward dispersion into a repo part and a dividend part, $s_k^2=\sigma_q^2T_k^2+s_k'^2$, where
+$\sigma_q$ is the dispersion of the contributors' repo views. Assume the repo views persist across maturities, and the
+dividend views are made of a persistent factor, with weight $w\in[0,1]$, plus independent increments. Then
+\begin{align}
+\Gamma^{\opt}_{kl}&=\frac{\sigma_q^2\,T_kT_l+w\,s'_ks'_l+(1-w)\min(s'_k, s'_l)^2}{\max\bigl(n^{\opt}_k, n^{\opt}_l\bigr)},
+\label{eq-gamma-opt}\\
+\Gamma^{\dv}&=A_S\,\Gamma^\ell\,\tr{A_S}, \qquad(A_S)_{kp}=\frac{a_{kp}}{S_0-D_k}, \qquad
+\Gamma^\ell_{pp'}=\frac{\rho_{pp'}\,\sigma^\ell_p\sigma^\ell_{p'}}{\max\bigl(n^{\dv}_p, n^{\dv}_{p'}\bigr)} ,
+\label{eq-gamma-div}
+\end{align}
+where $\rho_{pp'}$ is the correlation of the view errors between periods $p$ and $p'$.
+\end{proposition}
+The proof is in \cref{app-noise}. The prototype takes $w=1/2$, $\rho_{pp'}=e^{-|c_p-c_{p'}|/2}$ for periods with
+mid-points $c_p$ and $c_{p'}$ (in years), and reads $\sigma_q$ off the short end, where dividend uncertainty is
+negligible: it is the median of $s_k/T_k$ over the first three pillars (the minimum, biased low, would understate the
+uncertainty on the repo level). A diagonal term accounts for the residual of the parity fit. The scale $\kappa$ absorbs
+a common bias in these settings; it is the \emph{shape} of $\Gamma$ that makes the detector powerful, because it tells
+it which differences are cheap (smooth, long-dated) and which are expensive (short-dated, localised).
+
+\paragraph{Dispersion spikes are symptoms.} When part of the contributors put a dividend on the other side of an expiry
+(\cref{prop-signatures}, (iii)), the published dispersion at that expiry rises. Keeping it as is in $\Gamma$ would hide
+the very anomaly it signals.
+
+\begin{proposition}[Masking]\label{prop-masking}
+In situation (iii) of \cref{prop-signatures}, let $s_k$ be the dispersion without the disagreement and
+$\Delta=\tilde d_i/(S_0-D_k)$. The statistic of the shift at $T_k$, computed with the published dispersion, is
+\[
+z=\frac{f\,\Delta}{\sqrt{s_k^2+f(1-f)\Delta^2}\big/\sqrt{n^{\opt}_k}}\;\le\;\sqrt{\frac{n^{\opt}_k\,f}{1-f}}
+\]
+whatever the size of the dividend, while with the dispersion without the disagreement, $z$ grows linearly in $\Delta$.
+\end{proposition}
+\begin{proof}
+The mean shift and the extra variance are given by \cref{prop-signatures}, (iii); as $\Delta\to+\infty$, the ratio
+increases to $\sqrt{n^{\opt}_k}\,f/\sqrt{f(1-f)}$.
+\end{proof}
+With $f=\num{0.375}$ and $n^{\opt}_k=16$, the bound is $\num{3.1}$: barely the test threshold, so the disagreement would
+often go unnoticed. The prototype therefore caps an isolated dispersion spike at $\num{1.5}$ times the larger of the
+two neighbouring dispersions before building $\Gamma$, and publishes the ratio to the neighbour, which is itself an
+indicator of disagreement. In the running example, this ratio is \vRunTimingRatio{} at six months in the ex-date
+disagreement scenario, and stays below $2$ everywhere else.
+
+\subsection{The null model: what is not an anomaly}\label{sec-null}
+The term $X\beta$ represents a smooth repo difference between Totem and the FO: $\beta_0$ is the repo difference at one
+year (since $\ln1=0$) and $\beta_1$ its slope per unit of $\ln T$. Such a difference can come from a genuine difference
+of view on the repo, from an FO mismark or from a smooth bias in the consensus; in every case, it is not a \emph{bad}
+curve. The detector removes it from every test and publishes it separately: $\hat\beta_0$ feeds the FO mismark test
+(\cref{sec-attribution}). If two parameters turn out too rigid on real data, a penalised spline can replace
+$X\beta$~\cite{eilers1996}; nothing else changes.
+
+\subsection{Typical shapes and the test}\label{sec-test}
+Each mechanism of \cref{prop-signatures} defines a typical shape $g\in\R^N$, tested at every possible position
+(\cref{tab-templates}). With eleven pillars, this gives \vNTemplates{} typical shapes.
+
+\begin{table}[ht]
+\centering
+\caption{The detector's typical shapes. $\one$ is the vector with all components equal to $1$, $e_k$ the $k$-th
+canonical basis vector and $K_h$ a Gaussian kernel of width $h=20$ days. The natural units follow from
+\cref{prop-signatures}. A spike at the last pillar is the same vector as a step at that pillar.}
+\label{tab-templates}
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.9cm}>{\raggedright\arraybackslash}p{3.6cm}
+>{\raggedright\arraybackslash}p{4.2cm}>{\raggedright\arraybackslash}p{4.0cm}@{}}
+\toprule
+Typical shape & Vector $g$ & Mechanisms & Size $a$ in natural units\\
+\midrule
+level & $\one$ & spot mismatch; dividend before $T_1$ & spot: $\varepsilon\approx-a$;
+dividend: $\delta d\approx-a\,(S_0-D_1)$\\
+step at $T_k$ & $\bigl(\one_{\{l\ge k\}}\bigr)_{l\in\ient1N}$ & dividends going ex in $\intoc{T_{k-1}}{T_k}$;
+contributor drop-off at $T_k$ & $\delta\ell\approx-a\,(S_0-D_k)$\\
+spike at $T_k$ & $e_k$ & forward outlier; ex-date disagreement around $T_k$ & $\mu\approx-a$; share of the dividend
+$f\approx a\,(S_0-D_k)/\tilde d_i$\\
+season & $\Bigl(\sum_i\dfrac{\tilde d_i\,K_h(T_k-t_i)}{S_0-D_k}\Bigr)_k$ & shifted ex-date profile & shift
+$\Delta\approx a$ years\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\paragraph{Whitening and projection.} Let $W\in\M_N(\R)$ be a whitening matrix, with $W(\kappa\Gamma)\tr{W}=I_N$ (for
+example $W=L^{-1}$ with the Cholesky factorisation $\kappa\Gamma=L\,\tr{L}$), and $\Pi$ the orthogonal projection onto
+the orthogonal complement of the columns of $WX$. Let
+\[
+\eh=\Pi W\delta\quad\text{(whitened residual)}, \qquad\gt=\Pi Wg\quad\text{(whitened typical shape)}.
+\]
+After whitening, the noise is a Gaussian vector with identity covariance, and the projection removes the smooth repo
+difference.
+
+\begin{theorem}[Likelihood ratio test for one typical shape]\label{thm-glrt}
+In the model $\delta=X\beta+a\,g+\varepsilon$, $\varepsilon\sim\N(0, \kappa\Gamma)$, with $\beta$ unknown, the
+generalised likelihood ratio statistic of $H_0:a=0$ against $H_1:a\ne0$ is $z_g^2$, with
+\begin{equation}\label{eq-z}
+z_g=\frac{\sprod{\gt}{\eh}}{\norm{\gt}}\sim\N\bigl(a\norm{\gt}, 1\bigr).
+\end{equation}
+The maximum likelihood estimate of the size is $\hat a_g=\sprod{\gt}{\eh}/\norm{\gt}^2$, with standard deviation
+$1/\norm{\gt}$. Among tests invariant under the null subspace and the sign of $a$, the one that rejects for large values
+of $|z_g|$ is uniformly most powerful.
+\end{theorem}
+\begin{proof}
+We have $W\delta=WX\beta+a\,Wg+W\varepsilon$ with $W\varepsilon\sim\N(0, I_N)$; the maximised log-likelihood is, up to
+a constant, $-\tfrac12$ times the residual sum of squares. Under $H_0$, this sum is $\norm{\eh}^2$; under $H_1$, by the
+Frisch--Waugh--Lovell theorem~\cite{lovell1963}, it is $\norm{\eh}^2-\sprod{\gt}{\eh}^2/\norm{\gt}^2$. Hence
+$2\ln\Lambda=z_g^2$, and $\hat a_g$ is the partial regression coefficient. Since $\Pi WX=0$ and $\Pi$ is symmetric and
+idempotent, $\eh=a\,\gt+\Pi W\varepsilon$ and $\sprod{\gt}{\eh}=a\norm{\gt}^2+\sprod{\gt}{W\varepsilon}$, where
+$\sprod{\gt}{W\varepsilon}\sim\N(0, \norm{\gt}^2)$. Optimality is the result on matched subspace detectors of Scharf
+and Friedlander~\cite{scharf1994}.
+\end{proof}
+
+\begin{corollary}[Power]\label{cor-power}
+At threshold $c$, an anomaly of shape $g$ is detected with probability $\Phi(\lambda-c)+\Phi(-\lambda-c)$, where $\Phi$
+is the standard normal distribution function and $\lambda=|a|\,\norm{\gt}$ the \emph{signal-to-noise ratio} of the
+anomaly. At the benchmark's typical threshold, $c\approx\vZcrit$, an anomaly with $\lambda=4$ is detected with
+probability \vPowThFour{} and one with $\lambda=6$ with probability \vPowThSix.
+\end{corollary}
+
+\begin{proposition}[Global test and common threshold]\label{prop-family}
+Under $H_0$:
+\begin{enumerate}[label=(\roman*)]
+\item $\norm{\eh}^2$ follows a $\chi^2$ distribution with $N-2$ degrees of freedom; this global test catches a roughness
+that no typical shape explains;
+\item the vector $(z_g)_{g}$ is centred Gaussian with correlation matrix
+$\Omega_{gh}=\sprod{\gt}{\tilde h}/(\norm{\gt}\norm{\tilde h})$, which depends neither on $\beta$ nor on $\kappa$; the
+threshold $c_\alpha$ such that $\mathbb P(\max_g|z_g|>c_\alpha)=\alpha/2$ is computed exactly by simulating
+$\N(0, \Omega)$, and it is below the Šidák threshold~\cite{sidak1967};
+\item the rule ``alarm if $\max_g|z_g|>c_\alpha$ or if $\norm{\eh}^2$ exceeds its $1-\alpha/2$ quantile'' has a false
+alarm rate of at most $\alpha$.
+\end{enumerate}
+\end{proposition}
+\begin{proof}
+(i) $\eh=\Pi W\varepsilon$ and $\Pi$ is an orthogonal projection of rank $N-2$. (ii) $z_g$ is a linear form of
+$W\varepsilon$; Šidák's inequality gives $\mathbb P(\max_g|z_g|\le c)\ge\prod_g\mathbb P(|z_g|\le c)$ for every
+correlation. (iii) Union bound.
+\end{proof}
+
+\begin{proposition}[Exact calibration of the scale]\label{prop-kappa}
+Replacing $\kappa=1$ by $\kappa$ divides every $z_g$ by $\sqrt\kappa$ and $\norm{\eh}^2$ by $\kappa$, without changing
+$c_\alpha$. On clean history, the alarm rate is therefore a decreasing function of $\kappa$, and the smallest $\kappa$
+whose alarm rate does not exceed the target $\alpha$ is found exactly by bisection.
+\end{proposition}
+\begin{proof}
+Whitening with $\kappa\Gamma$ multiplies $W$ by $\kappa^{-1/2}$; $\Pi$ and $\Omega$ do not change.
+\end{proof}
+
+\subsection{Explanation, repaired curve and FO mismark}\label{sec-attribution}
+\paragraph{Explanation.} After an alarm, typical shapes are selected one at a time: at each step, the one with the
+largest $|z|$ after projecting out the null model and the shapes already selected is added, as long as it exceeds
+$c_\alpha$ (matching pursuit~\cite{mallat1993}). The selected shapes are then refitted jointly with the null model by
+generalised least squares, and each size is translated into natural units (\cref{tab-templates}).
+
+\paragraph{Repaired curve.} The repaired Totem curve removes the anomaly and keeps everything else:
+\[
+q^{\mathrm{rep}}_k=q^{\tot}_k-\frac{1}{T_k}\sum_{g\in\mathcal S}\hat a_g\,g_k .
+\]
+Shapes contained in the null subspace are undetectable by construction: a smooth repo difference is a legitimate
+disagreement, published but never flagged as a curve anomaly.
+
+\paragraph{FO mismark.} The level $\hat\beta_0$ (Totem minus FO, at one year) and its standard deviation come from the
+same fit. The FO repo is flagged as a possible mismark when $|\hat\beta_0|$ exceeds both $10$\,bp and
+$t_{\nu,1-\alpha/2}\,s\,\sigma(\hat\beta_0)$, where:
+\begin{itemize}
+\item $t_{\nu,1-\alpha/2}$ is a quantile of the Student distribution with $\nu=n^{\opt}-1$ degrees of freedom at the
+short end: the standard deviation rests on dispersions estimated from a handful of contributors (\cref{app-student});
+\item $s\ge1$ is a scale calibrated on clean history like $\kappa$, so that clean names raise at most a proportion
+$\alpha$ of mismark flags; it is \vLevelScaleEuStock, \vLevelScaleUsStock, \vLevelScaleHtb{} and \vLevelScaleIndex{}
+for the benchmark's four categories.
+\end{itemize}
+The full algorithms (bootstrap, detection, calibration) are in \cref{app-algos}.
+
+\subsection{A worked example}
+\begin{example}[Four pillars]\label{ex-toy}
+Pillars $T=(\num{0.25}, \num{0.5}, 1, 2)$, independent noise with standard deviations $(1, 2, 4, 8)$\,bp of carry, a null
+model reduced to the repo level ($X=T$), a true level of $30$\,bp, a spike of $12$\,bp at $T_2$ and noise
+$(\num{0.4}, \num{-1.1}, \num{2.6}, \num{-3.0})$\,bp, hence $\delta=(\num{7.9}, \num{25.9}, \num{32.6}, \num{57.0})$\,bp. The
+fitted level is $\hat\beta_0=\vToyBeta$\,bp and $\norm{\eh}^2=\vToyQ$ (the \pct{99} quantile of $\chi^2(3)$ is
+\num{11.3}). The \vToyM{} typical shapes give:
+\begin{center}\input{generated/\lang/tab_toy}\end{center}
+The common threshold at $\alpha=\pct{2}$ is $c_\alpha=\vToyC$ (Šidák: \vToyCsidak). The spike at $T_2$ wins
+($z=\vToyZbest$, size $\vToyAmpBest\pm\vToySeBest$\,bp for $12$ injected); the step from $T_2$ also scores high, because
+the two shapes are correlated. Matching pursuit selects the spike; after that, all remaining $|z|$ are below
+\vToyZafter{} and $\norm{\eh}^2$ falls to \vToyQafter: one explanation is enough.
+\end{example}
+
+\subsection{Back to the running example}\label{sec-back}
+\begin{filrouge}
+\Cref{tab-running} gives, for the running example's stock, the detector's diagnosis in the nine situations of
+\cref{fig-gallery}, with the scale $\kappa=\vRunKappa$ calibrated for European stocks and $\alpha=\pct{2}$. The clean
+market triggers nothing ($\max_g|z_g|=\vRunMaxZ<c_\alpha=\vRunCrit$, and the global test has a $p$-value of \vRunChiP).
+\end{filrouge}
+
+\begin{table}[ht]
+\centering
+\caption{Running example: what is injected and what the detector says. $z$ is statistic \eqref{eq-z} of the first
+selected shape; sizes are translated into natural units (\cref{tab-templates}).}
+\label{tab-running}
+\input{generated/\lang/tab_running}
+\end{table}
+
+Several points stand out.
+\begin{itemize}
+\item \textbf{The mechanisms are named correctly.} Spot, dividend period, ex-date, profile and forward outlier are all
+attributed to the right shape and the right maturity. The spot mismatch is recovered at \vRunSpotEst{} for
+\vRunSpotEps{} injected; the forward outlier at \vRunFwdEst\,bp (standard deviation \vRunFwdSe) for \vRunFwdShift\,bp.
+\item \textbf{Sizes are estimates.} The 2027 error is estimated at \vRunBucketEst{} (standard deviation
+\vRunBucketSe) for \vRunBucketDelta{} injected: the clean market's own noise at nine months (the panel gap of
+\cref{fig-clean}) is netted from the estimate. The share of the misplaced dividend is estimated at \vRunTimingEst{} for
+\vRunTimingShare{} injected, because the consensus outlier filter has already removed part of the disagreeing
+contributors. The profile shift is estimated at \vRunSeasonEst~days for \vRunSeasonShift: the conversion into days is a
+linearisation, right in sign and order of magnitude.
+\item \textbf{What is smooth is not flagged.} The biased long-dated sub-panel produces a smooth distortion after the
+\vRunPanelTenor{} drop-off; it is absorbed by the smooth repo difference and the detector flags nothing
+($\max_g|z_g|=\vRunPanelMaxZ$). This is \cref{thm-nonid} at work. Likewise, the gross/net bias is seen as a step at the
+first ex-date (\vRunGrossEst{} on the 2027 dividend) plus a repo slope, as \cref{prop-signatures}, (vi) predicts.
+\item \textbf{An FO error is not a bad curve.} When the FO repo is wrong, no curve anomaly is flagged, and the level test
+finds $\hat\beta_0=\vRunFoLevel$\,bp (standard deviation \vRunFoSe), beyond the \vRunFoThr\,bp threshold: possible FO
+mismark.
+\end{itemize}
+
+\begin{figure}[ht]
+\centering\includegraphics[width=\linewidth]{figures/\lang/decomposition.pdf}
+\caption{Running example, error on the 2027 period of \cref{fig-gallery}(b), seen in carry: observed difference,
+fitted smooth repo difference with its band of $\pm2$ standard deviations, and the smooth fit plus the selected step. At
+long maturities the noise is so large that points stray from the fit without being significant.}
+\label{fig-decomposition}
+\end{figure}
+
+\begin{retenir}
+\begin{itemize}[leftmargin=12pt]
+\item The detector judges the carry difference against a noise computed from Totem's statistics, removes the smooth
+repo difference, then tests one typical shape per mechanism.
+\item Each test is an exact matched filter; the common threshold and the scale $\kappa$ fix the false alarm rate
+exactly; the power is known in closed form.
+\item Every alarm comes with an explanation in natural units and a repaired curve; the level $\hat\beta_0$ separates FO
+mismarks from Totem anomalies.
+\end{itemize}
+\end{retenir}

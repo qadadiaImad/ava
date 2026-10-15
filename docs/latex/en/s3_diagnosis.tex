@@ -1,0 +1,235 @@
+\section{Where do bad curves come from?}\label{sec-diagnostic}
+
+\begin{objectif}
+(G1) Decompose the implied repo, compute the size of the normal noise, and give the shape that each mechanism causing
+real anomalies leaves in the carry difference.
+\end{objectif}
+
+\subsection{The panel gap}\label{sec-gap}
+We work under \cref{hyp-coherent,hyp-panels,hyp-consensus} at a fixed maturity $T$. The contributors' views are
+perturbations of a common centre, $q_j=q+u_j$ and $D_j=D+v_j$, where $u_j$ and $v_j$ are of order $\epsilon$. Let
+$\qbar$ and $\Dopt$ be the averages of the $q_j$ and of the $D_j$ over the option panel, and $\Ddiv$ the consensus of
+the dividend panel, allocated at maturity $T$.
+
+\begin{proposition}[Decomposition of the implied repo]\label{prop-gap}
+\begin{equation}\label{eq-gap}
+q^{\tot}(T)=\qbar(T)+\frac{\Dopt(T)-\Ddiv(T)}{T\,\bigl(S_0-D(T)\bigr)}+O(\epsilon^2).
+\end{equation}
+\end{proposition}
+\begin{proof}
+For $j\in\Popt$, \cref{lem-logf} gives $\ln F_j=\ln F-T\,u_j-v_j/(S_0-D)+O(\epsilon^2)$. The Totem forward is the
+average of the $F_j$, and the log of an average equals the average of the logs up to a term of order $\epsilon^2$; hence
+$\ln F^{\tot}=\ln F-T\,\bar u^{\opt}-\bar v^{\opt}/(S_0-D)+O(\epsilon^2)$. The controller takes out the consensus
+dividends $D^{\tot}=D+\bar v^{\dv}$:
+\[
+q^{\tot}T=rT-\ln F^{\tot}+\ln\bigl(S_0-D^{\tot}\bigr)=qT+T\,\bar u^{\opt}+\frac{\bar v^{\opt}-\bar v^{\dv}}{S_0-D}
++O(\epsilon^2).
+\]
+Divide by $T$, with $q+\bar u^{\opt}=\qbar$ and $\bar v^{\opt}-\bar v^{\dv}=\Dopt-\Ddiv$.
+\end{proof}
+
+The implied repo is therefore the average repo of the option panel plus a \emph{panel gap}: the difference between the
+option panel's average dividend view, which nobody observes, and the dividend panel's, divided by $T(S_0-D)$. For a
+given contributor, an error on its dividends cancels exactly in its implied repo; between two panels, it does not.
+
+\begin{corollary}[Size of the panel gap]\label{cor-gap}
+Assume the view errors on $D(T)$ are independent and identically distributed with standard deviation $\sigma_D(T)$ in
+both panels, and the $n^{\com}$ contributors common to both services consistent with themselves. Then
+\begin{equation}\label{eq-gap-sd}
+\sigma\bigl(q^{\tot}-\qbar\bigr)=\frac{\sigma_D(T)}{T\,\bigl(S_0-D(T)\bigr)}
+\sqrt{\frac{1}{n^{\opt}}+\frac{1}{n^{\dv}}-\frac{2\,n^{\com}}{n^{\opt}n^{\dv}}} .
+\end{equation}
+\end{corollary}
+\begin{proof}
+$\Dopt-\Ddiv=\sum_j(\alpha_j-\gamma_j)\,v_j$, with $\alpha_j=1/n^{\opt}$ on the option panel, $\gamma_j=1/n^{\dv}$ on the
+dividend panel, and $0$ elsewhere. Its variance is
+$\sigma_D^2\sum_j(\alpha_j-\gamma_j)^2=\sigma_D^2\bigl[n^{\com}(1/n^{\opt}-1/n^{\dv})^2+(n^{\opt}-n^{\com})/(n^{\opt})^2
++(n^{\dv}-n^{\com})/(n^{\dv})^2\bigr]$, which simplifies to
+$\sigma_D^2\bigl(1/n^{\opt}+1/n^{\dv}-2n^{\com}/(n^{\opt}n^{\dv})\bigr)$.
+\end{proof}
+
+The gap vanishes if the two panels are identical ($n^{\com}=n^{\opt}=n^{\dv}$); it is largest when they are disjoint. The
+dispersion $\sigma_D(T)$ of a cumulative dividend grows at least like $T$: the panel gap is small in carry at the short
+end, but it does not shrink in repo at the long end.
+
+\begin{example}[Size of the gap for a stock]\label{ex-gap}
+We take the running example's model: spot $100$, an annual dividend of $\num{4.2}$ going ex in early May, and each
+contributor wrong on the dividend going ex at $t$ by a relative error with standard deviation $\num{0.01}+\num{0.03}\,t$,
+part of it common to all its dividends. The panels are disjoint, with the running example's sizes, and the option
+contributors also disagree by $15$\,bp on the repo, which the implied repo must not pick up. Formula
+\eqref{eq-gap-sd} and a contributor-level simulation give:
+\begin{center}\input{generated/\lang/tab_gap}\end{center}
+The gap alone produces \vGapOneY\,bp of repo noise at one year and \vGapFiveY\,bp at five years, with no error at all
+in Totem. It is zero before the first ex-date, jumps at each ex-date, then decays like $1/T$ until the next one
+(\cref{fig-gap}).
+\end{example}
+
+\begin{figure}[ht]
+\centering\includegraphics[width=\linewidth]{figures/\lang/panel_gap.pdf}
+\caption{(a) Implied repo noise from the panel gap alone, formula \eqref{eq-gap-sd}, for the running example's panels
+and two other sizes (options / dividends): it appears at each ex-date, then decays like $1/T$. (b) A spot mismatch
+$\varepsilon$ is constant in carry, hence $\varepsilon/T$ in repo (\cref{prop-signatures}).}
+\label{fig-gap}
+\end{figure}
+
+\subsection{Contributor drop-offs}\label{sec-nested}
+Panels shrink with maturity. Since they are nested, the average over a small panel is not independent of the average
+over a larger panel that contains it.
+
+\begin{proposition}[Averages over nested panels]\label{prop-nested}
+Let $e_{jk}$ be the error of contributor $j$ at maturity $T_k$, independent across contributors, with
+$\Var e_{jk}=\sigma_k^2$ and $\Cov(e_{jk}, e_{jl})=\rho_{kl}\,\sigma_k\sigma_l$. If the panels are nested, with sizes
+$n_k$, the averages $\bar e_k$ satisfy
+\begin{equation}\label{eq-nested}
+\Cov(\bar e_k, \bar e_l)=\frac{\rho_{kl}\,\sigma_k\sigma_l}{\max(n_k, n_l)} .
+\end{equation}
+In particular, for persistent views ($\rho_{kl}=1$, $\sigma_k=\sigma_l=\sigma$) and $n_l\le n_k$, the jump of the
+average when the panel goes from $n_k$ to $n_l$ contributors has standard deviation $\sigma\sqrt{1/n_l-1/n_k}$.
+\end{proposition}
+\begin{proof}
+The two averages share $\min(n_k, n_l)$ contributors, hence
+\[
+\Cov(\bar e_k, \bar e_l)=\frac{\min(n_k, n_l)}{n_kn_l}\,\rho_{kl}\sigma_k\sigma_l
+=\frac{\rho_{kl}\,\sigma_k\sigma_l}{\max(n_k, n_l)} .
+\]
+Then $\Var(\bar e_l-\bar e_k)=\sigma^2(1/n_l+1/n_k-2/n_k)=\sigma^2(1/n_l-1/n_k)$.
+\end{proof}
+
+In units of contributor dispersion, the consensus thus jumps by itself by $\vJumpA\,\sigma$ when the panel goes from
+$16$ to $12$ contributors, by $\vJumpB\,\sigma$ from $12$ to $7$ (the running example's option panel between two and
+three years), by $\vJumpC\,\sigma$ from $15$ to $7$ and by $\vJumpD\,\sigma$ from $10$ to $4$. A jump of that size at a
+contributor drop-off is noise, not information; the noise model of \cref{sec-detection} reproduces it through
+\eqref{eq-nested}.
+
+\subsection{Six mechanisms, six signatures}\label{sec-signatures}
+Beyond the noise, some mechanisms cause real anomalies. Each leaves a characteristic shape in the carry difference.
+
+\begin{proposition}[Signatures]\label{prop-signatures}
+To first order, each mechanism adds the following contribution to the carry difference $\delta$.
+\begin{enumerate}[label=(\roman*)]
+\item \emph{Spot mismatch.} If the option contributors price off a spot $S_0(1+\varepsilon)$ while the controller uses
+$S_0$: $-\varepsilon S_0/(S_0-D_k)\approx-\varepsilon$ at every pillar, that is, a repo error $-\varepsilon/T_k$. A
+dividend going ex before $T_1$ and wrong by $\delta d$ in the dividend service gives the same shape,
+$-\delta\tilde d/(S_0-D_k)$.
+\item \emph{Error on one dividend period.} If the Totem level of period $p$ is wrong by $\delta\ell_p$, the
+contribution is $-a_{kp}\,\delta\ell_p/(S_0-D_k)$: a step that starts at the first pillar after the ex-date; in repo, a
+jump that decays like $1/T$.
+\item \emph{Ex-date disagreement.} Take a dividend going ex at $t_i\in\intoo{T_k}{T_{k+1}}$, and a fraction $f$ of the
+option panel that puts it before $T_k$: $+f\,\tilde d_i/(S_0-D_k)$ at pillar $T_k$ alone, a spike. The variance of the
+$\ln F_j$ at $T_k$ rises by $f(1-f)\,\tilde d_i^{\,2}/(S_0-D_k)^2$.
+\item \emph{Stale ex-date profile.} If the forwards use the true dates $t_i$ but the allocation puts them at
+$t_i+\Delta$ with $\Delta>0$: $+\tilde d_i/(S_0-D_k)$ at the pillars $T_k\in\intco{t_i}{t_i+\Delta}$, and nothing
+elsewhere (for $\Delta<0$, $-\tilde d_i/(S_0-D_k)$ at the pillars $T_k\in\intco{t_i+\Delta}{t_i}$). For a seasonal
+payer, the affected pillars come back every year.
+\item \emph{Forward outlier.} If the consensus $\ln F^{\tot}_k$ is off by $\mu$: $-\mu$ at pillar $T_k$ alone, a
+spike.
+\item \emph{Proportional dividend bias} (for example gross versus net of withholding tax). If every Totem dividend is
+$(1+\tau)$ times the one in the forwards: $-\tau D_k/(S_0-D_k)$, a staircase that steps up at every ex-date. For a
+continuous stream with yield $y$, $D_k\approx S_0\,y\,T_k$ and the contribution is about $-\tau\,y\,T_k$: exactly the
+shape of a constant repo difference of $-\tau y$.
+\end{enumerate}
+Two more shapes complete the picture: a contributor drop-off at pillar $T_k$ gives a step at $T_k$
+(\cref{prop-nested}), and an FO repo mismark of $\Delta q$ gives $-\Delta q(T_k)\,T_k$, a smooth repo difference.
+\end{proposition}
+\begin{proof}
+Apply \eqref{eq-delta-exact} to perturbed forwards or dividends.
+(i) Each contributor's forward becomes $\bigl(S_0(1+\varepsilon)-D\bigr)e^{(r-q)T}$, so $\ln F^{\tot}_k$ moves by
+$\ln\bigl(1+\varepsilon S_0/(S_0-D_k)\bigr)$; for the near dividend, $D^{\tot}_k$ moves by $\delta\tilde d$ at every
+pillar.
+(ii) \Cref{lem-allocation} gives $\delta D^{\tot}_k=a_{kp}\,\delta\ell_p$, zero before the ex-date and roughly constant
+after.
+(iii) At $T_k$, a fraction $f$ of the option panel includes the dividend, so $\ln F^{\tot}_k$ falls by
+$f\tilde d_i/(S_0-D_k)$, while the allocation excludes it; before $T_k$, nobody includes it, and after $T_{k+1}$
+everybody does. For the variance: the contributors form two groups, with weights $f$ and $1-f$, whose average
+$\ln F_j$ differ by $\tilde d_i/(S_0-D_k)$.
+(iv) $D^{\tot}_k-D_k=\sum_i\tilde d_i\bigl(\one_{\{t_i+\Delta\le T_k\}}-\one_{\{t_i\le T_k\}}\bigr)$, which equals
+$-\tilde d_i$ exactly when $t_i\le T_k<t_i+\Delta$.
+(v) Immediate. (vi) $\delta D^{\tot}_k=\tau D_k$; for a yield, $D_k=S_0(1-e^{-yT_k})\approx S_0\,y\,T_k$ and
+$S_0-D_k\approx S_0$.
+\end{proof}
+
+\begin{table}[ht]
+\centering
+\caption{Signatures of the mechanisms. The last column gives the typical shape tested by the detector of
+\cref{sec-detection}.}
+\label{tab-signatures}
+\small
+\begin{tabular}{@{}>{\raggedright\arraybackslash}p{4.2cm}>{\raggedright\arraybackslash}p{4.3cm}
+>{\raggedright\arraybackslash}p{3.6cm}l@{}}
+\toprule
+Mechanism & Carry difference $\delta$ & Repo difference & Typical shape\\
+\midrule
+Panel gap (\ref{prop-gap}) & smooth noise, increments at ex-dates & roughly flat noise & noise\\
+Contributor drop-off (\ref{prop-nested}) & step at the drop-off & jump decaying like $1/T$ & step\\
+(i) Spot mismatch & constant & hyperbola $-\varepsilon/T$ & level\\
+(ii) Error on one period & step after the ex-date & jump decaying like $1/T$ & step\\
+(iii) Ex-date disagreement & one pillar & spike & spike\\
+(iv) Stale profile & pillars near the ex-dates & yearly zigzag & season\\
+(v) Forward outlier & one pillar & spike & spike\\
+(vi) Proportional bias & staircase; $\approx-\tau yT$ for a stream & steps; a level for an index & step\\
+FO mismark & $-\Delta q(T)\,T$, smooth & smooth level or slope & none\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{filrouge}
+\Cref{fig-gallery} shows the running example's stock under each of the eight benchmark scenarios, with the same
+contributor noise as in the clean market. In (a), the option contributors' spot is off by \vRunSpotEps: the Totem curve
+dives like $1/T$ at the short end. In (b), the Totem 2027 level is off by \vRunBucketDelta: a jump at nine months that
+decays like $1/T$. In (c), \vRunTimingShare{} of the option panel put the dividend going ex \vRunTimingDays~days after
+the six-month expiry before it: a spike at six months. In (d), the allocation profile is shifted by
+\vRunSeasonShift~days: the May dividends move before the six- and eighteen-month expiries, hence two negative spikes.
+In (e), the consensus $\ln F$ at two years is off by \vRunFwdShift\,bp. In (f), the option contributors left after the
+three-year drop-off overstate later dividends by \vRunPanelDelta: the distortion is smooth and stays inside the band.
+In (g), it is the FO repo that is off by \vRunFoShift\,bp, Totem being intact. In (h), every Totem period is biased by
+\vRunGrossBias{} (gross/net bias).
+\end{filrouge}
+
+\begin{figure}[p]
+\centering\includegraphics[width=\linewidth]{figures/\lang/gallery.pdf}
+\caption{Running example under the eight scenarios: FO repo, Totem-implied repo, band of $\pm2$ standard deviations of
+consensus noise around the FO, and, in green, the Totem curve repaired by the detector of \cref{sec-detection}
+(anomaly removed). In (f), the detector flags nothing; in (g), it flags no Totem anomaly but a possible FO mismark.
+\Cref{tab-running} details the diagnoses.}
+\label{fig-gallery}
+\end{figure}
+
+\subsection{What the data cannot tell}\label{sec-nonid}
+\begin{theorem}[Non-identifiability of the split]\label{thm-nonid}
+Assume European option prices depend on a contributor's views only through its forwards. For every contributor $j$
+of the option panel, replace $(q_j, D_j)$ by $(q_j+u_j, D'_j)$ with
+$u_j(T)\,T=\ln\bigl(S_0-D'_j(T)\bigr)-\ln\bigl(S_0-D_j(T)\bigr)$. Then every option price is unchanged, hence every
+statistic of the option panel (consensus, dispersion, contributor count); the statistics of the dividend panel are
+unchanged too. The implied repo $q^{\tot}$ is therefore unchanged, while the option panel's average repo $\qbar$ moves
+by the average of the $u_j$. Consequently, the panel gap $q^{\tot}-\qbar$ is not a function of the observable data.
+\end{theorem}
+\begin{proof}
+The transformation leaves $\ln F_j=(r-q_j)T+\ln(S_0-D_j)$ unchanged for every $j$ and every $T$: each contributor's
+option prices, and every statistic derived from them, are unchanged. The dividend panel is untouched. $q^{\tot}$ is
+computed from these statistics only, so it does not move, while $\qbar$ moves by the average of the $u_j$, which can
+take any value.
+\end{proof}
+
+\begin{corollary}\label{cor-nonid}
+No estimator built from Totem consensus data alone (curve smoothing, clustering, neural network) can remove the panel
+gap. One can, however, compute its size (\cref{sec-detection}), recognise the structured mechanisms by their signature
+(\cref{prop-signatures}), and do without the split between repo and dividends where the exposure does not need it
+(\cref{sec-control}).
+\end{corollary}
+
+\begin{remark}[What resolves the indeterminacy]
+Information outside the consensus pins down one of the two sides directly: listed dividend futures, total return
+futures, which quote a funding spread, and stock borrow fees for the short end. Contributors common to both services
+shrink the gap (\cref{cor-gap}), and American options carry a little information on the split through early exercise.
+\end{remark}
+
+\begin{retenir}
+\begin{itemize}[leftmargin=12pt]
+\item Implied repo $=$ option panel repo $+$ panel gap. The panel gap is normal noise of computable size: a few basis
+points at one year, one to several tens at five years.
+\item Real anomalies have recognisable shapes in carry: level (spot), step (dividend period, contributor drop-off),
+spike (ex-date, forward outlier), season (stale profile).
+\item The option panel's split between repo and dividends cannot be identified from Totem: no statistical method,
+however sophisticated, will recover it.
+\end{itemize}
+\end{retenir}
